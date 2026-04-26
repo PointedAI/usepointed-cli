@@ -1,0 +1,34 @@
+---
+title: Installation
+description: Install Pointed CLI from npm or run it from source.
+---
+
+## Install from npm
+
+```bash
+npm install -g @pointed/cli
+pointed --help
+```
+
+## Run from source
+
+```bash
+git clone https://github.com/PointedAI/usepointed-cli.git
+cd usepointed-cli
+npm install
+npm run build
+npm link
+pointed --help
+```
+
+You can also run the built file directly:
+
+```bash
+node dist/index.js --help
+```
+
+## Requirements
+
+- Node.js 20 or newer
+- A Pointed account
+- Browser access for `pointed auth login`, unless you use `POINTED_API_KEY`

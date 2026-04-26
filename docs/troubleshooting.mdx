@@ -1,0 +1,49 @@
+---
+title: Troubleshooting
+description: Fix common Pointed CLI setup and authentication issues.
+---
+
+## Check auth
+
+```bash
+pointed auth whoami
+```
+
+If you are not authenticated:
+
+```bash
+pointed auth login
+```
+
+Or use an API key:
+
+```bash
+export POINTED_API_KEY=your_api_key
+pointed auth whoami
+```
+
+## Check environment
+
+```bash
+pointed config get apiBaseUrl
+pointed config set apiBaseUrl https://app.usepointed.ai
+```
+
+If `POINTED_API_URL` is set, it overrides the saved config.
+
+## Use request IDs
+
+CLI API responses include `meta.requestId`. Include that request ID when reporting a failed command.
+
+## Inspect commands
+
+```bash
+pointed --help
+pointed auth --help
+pointed accounts --help
+pointed contacts --help
+pointed campaigns --help
+pointed story-templates --help
+pointed invites --help
+pointed responses --help
+```

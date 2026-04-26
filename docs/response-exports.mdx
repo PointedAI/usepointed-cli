@@ -1,0 +1,59 @@
+---
+title: Response exports
+description: Download response data, transcripts, media, summaries, and manifests.
+---
+
+## List responses
+
+```bash
+pointed responses list --campaign-id <campaignId>
+```
+
+## Download one response
+
+```bash
+pointed responses download \
+  --campaign-id <campaignId> \
+  --response-id <responseId> \
+  --output-dir ./pointed-export
+```
+
+## Download all responses for a campaign
+
+```bash
+pointed responses download \
+  --campaign-id <campaignId> \
+  --output-dir ./pointed-export
+```
+
+## Export shape
+
+Single response:
+
+```text
+<output-dir>/response-<contact-slug>-<date>/
+  response.json
+  round-1-transcript.txt
+  round-2-transcript.txt
+  response-<contact-slug>-<date>-round-1.mp4
+  response-<contact-slug>-<date>-round-2.mp4
+  ai-summary.txt
+  insights.json
+  manifest.json
+```
+
+Full campaign:
+
+```text
+<output-dir>/campaign-<title-slug>/
+  campaign.json
+  response-<contact-slug>-<date>/
+    response.json
+    round-*-transcript.txt
+    response-<contact-slug>-<date>-round-*.mp4
+    ai-summary.txt
+    insights.json
+    manifest.json
+```
+
+`manifest.json` records available files and warnings when optional media or generated summaries are missing.

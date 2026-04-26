@@ -1,0 +1,53 @@
+---
+title: Authentication
+description: Authenticate with Pointed using OAuth or an API key.
+---
+
+## Browser login
+
+Use browser-based OAuth for interactive usage.
+
+```bash
+pointed auth login
+pointed auth whoami
+```
+
+OAuth credentials are stored in:
+
+```text
+~/.pointed/credentials.json
+```
+
+## API key
+
+Use an API key for automation and non-interactive shells.
+
+```bash
+export POINTED_API_KEY=your_api_key
+pointed auth whoami
+```
+
+The CLI checks `POINTED_API_KEY` before stored OAuth credentials.
+
+## Configuration
+
+Local config is stored in:
+
+```text
+~/.pointed/config.json
+```
+
+Inspect or update configuration:
+
+```bash
+pointed config list
+pointed config get apiBaseUrl
+pointed config set apiBaseUrl https://app.usepointed.ai
+```
+
+Useful environment overrides:
+
+- `POINTED_API_URL`: override the API base URL
+- `POINTED_OUTPUT_FORMAT`: set `json` or `table`
+- `CLERK_FRONTEND_API_URL`: override hosted OAuth discovery
+- `CLERK_OAUTH_CLIENT_ID`: override the OAuth client ID for development

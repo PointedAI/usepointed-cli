@@ -1,0 +1,51 @@
+---
+title: Quickstart
+description: Install the Pointed CLI, authenticate, and create your first survey links.
+---
+
+The Pointed CLI lets you manage customer story collection from the terminal.
+
+## Install
+
+```bash
+npm install -g @pointed/cli
+```
+
+## Log in
+
+```bash
+pointed auth login
+pointed auth whoami
+```
+
+The CLI uses `https://app.usepointed.ai` by default.
+
+## Create an account and contact
+
+```bash
+pointed accounts create --name "Acme Corp" --industry "Technology"
+
+pointed contacts create \
+  --account-id <accountId> \
+  --name "Jane Doe" \
+  --email jane@example.com \
+  --title "VP Product"
+```
+
+## Create a campaign
+
+```bash
+pointed campaigns create \
+  --account-id <accountId> \
+  --name "Renewal proof" \
+  --context "Customer story collection for renewal" \
+  --initial-question "What outcome did this work unlock?"
+```
+
+## Generate links
+
+```bash
+pointed links generate --campaign-id <campaignId>
+```
+
+Omitting contact selectors generates links for all contacts on the campaign account.
