@@ -1,0 +1,69 @@
+---
+title: Commands
+description: Core Pointed CLI commands for accounts, contacts, campaigns, links, and invites.
+---
+
+## Accounts
+
+```bash
+pointed accounts list
+pointed accounts get <accountId>
+pointed accounts create --name "Acme Corp" --industry "Technology"
+```
+
+## Contacts
+
+```bash
+pointed contacts list --account-id <accountId>
+pointed contacts create --account-id <accountId> --name "Jane Doe" --email jane@example.com
+pointed contacts update <contactId> --email jane.new@example.com
+pointed contacts delete <contactId>
+```
+
+Batch create contacts from JSON:
+
+```bash
+pointed contacts create-batch --account-id <accountId> --input-file contacts.json
+```
+
+`contacts.json`:
+
+```json
+[
+  {
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "title": "VP Product"
+  }
+]
+```
+
+## Campaigns
+
+```bash
+pointed campaigns list --account-id <accountId>
+pointed campaigns get <campaignId>
+pointed campaigns create \
+  --account-id <accountId> \
+  --name "Renewal proof" \
+  --context "Customer story collection for renewal" \
+  --initial-question "What outcome did this work unlock?"
+```
+
+## Links
+
+```bash
+pointed links generate --campaign-id <campaignId>
+pointed links generate --campaign-id <campaignId> --contact-ids id1,id2
+pointed links generate --campaign-id <campaignId> --contact-emails jane@example.com,john@example.com
+```
+
+## Invite email
+
+```bash
+pointed invites email preview <inviteId>
+pointed invites email send-test <inviteId> --email you@example.com
+pointed invites email send <inviteId>
+pointed invites email remind <inviteId>
+pointed invites delivery-issue clear <inviteId>
+```

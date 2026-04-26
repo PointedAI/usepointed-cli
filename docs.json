@@ -1,0 +1,35 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Pointed CLI",
+  "colors": {
+    "primary": "#2f75bb"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get started",
+        "pages": [
+          "docs/quickstart",
+          "docs/installation",
+          "docs/authentication"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "docs/commands",
+          "docs/story-templates",
+          "docs/response-exports"
+        ]
+      },
+      {
+        "group": "Support",
+        "pages": [
+          "docs/troubleshooting",
+          "docs/changelog"
+        ]
+      }
+    ]
+  }
+}

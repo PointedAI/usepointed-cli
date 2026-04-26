@@ -1,0 +1,59 @@
+---
+title: Story templates
+description: Use story templates to prepare account-level customer story collection.
+---
+
+Story templates are reusable collection plans. Enrolling an account prepares survey links for contacts on that account. It does not send customer email immediately.
+
+## Create a template
+
+```bash
+pointed story-templates create \
+  --title "Renewal proof" \
+  --customer-facing-name "ROI story" \
+  --role "Economic buyer" \
+  --goal "Capture ROI stories before renewal" \
+  --initial-question "What changed after adopting the product?"
+```
+
+## Inspect templates
+
+```bash
+pointed story-templates list
+pointed story-templates get <templateId>
+pointed story-templates enrollment-options <templateId>
+```
+
+## Enroll an account
+
+```bash
+pointed story-templates enroll <templateId> \
+  --account-id <accountId> \
+  --auto-include-new-contacts
+```
+
+Enroll specific contacts:
+
+```bash
+pointed story-templates enroll <templateId> \
+  --account-id <accountId> \
+  --contact-emails jane@example.com,john@example.com
+```
+
+## Manage enrollment
+
+```bash
+pointed story-templates account <templateId> <accountId>
+pointed story-templates set-auto-include <templateId> <accountId> --enabled false
+```
+
+`autoIncludeNewContacts` controls whether newly created contacts on the enrolled account should automatically receive prepared survey links for the template.
+
+## Legacy imports
+
+```bash
+pointed story-templates legacy-import-summary
+pointed story-templates import-legacy
+```
+
+Legacy import creates story templates for eligible existing campaigns and attaches the existing campaign records. It does not send new customer email.

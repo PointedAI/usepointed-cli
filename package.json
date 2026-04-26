@@ -1,0 +1,50 @@
+{
+  "name": "@pointed/cli",
+  "version": "0.1.0",
+  "description": "Pointed CLI for managing accounts, contacts, campaigns, survey links, and response exports from the terminal.",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/PointedAI/usepointed-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PointedAI/usepointed-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PointedAI/usepointed-cli/issues"
+  },
+  "bin": {
+    "pointed": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "tsc --noEmit",
+    "prepack": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "pointed",
+    "cli",
+    "customer-stories",
+    "survey",
+    "story-templates"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}
