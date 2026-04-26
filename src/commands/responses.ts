@@ -258,6 +258,7 @@ export function createResponsesCommand(): Command {
             );
 
             let totalWarnings = 0;
+            let exportedResponses = 0;
             for (const bundle of res.data.responses) {
               try {
                 const responseExport = await apiRequest<ResponseExportDownloadPayload>(
@@ -276,6 +277,7 @@ export function createResponsesCommand(): Command {
                   responseExport.data,
                 );
                 totalWarnings += warnings.length;
+                exportedResponses += 1;
               } catch (error) {
                 totalWarnings += 1;
                 console.error(
@@ -287,7 +289,7 @@ export function createResponsesCommand(): Command {
             }
 
             printSuccess(
-              `Exported ${res.data.totalResponses} response(s) to ${campaignDir}`,
+              `Exported ${exportedResponses} of ${res.data.totalResponses} response(s) to ${campaignDir}`,
             );
             if (totalWarnings > 0) {
               console.error(

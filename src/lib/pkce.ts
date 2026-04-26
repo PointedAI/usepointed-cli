@@ -2,14 +2,10 @@ import * as crypto from "node:crypto";
 
 /**
  * Generates a cryptographically random code verifier for PKCE (RFC 7636).
- * Length: 43-128 characters from the unreserved character set.
+ * 32 random bytes encoded as base64url produces a 43-character verifier.
  */
 export function generateCodeVerifier(): string {
-  const buffer = crypto.randomBytes(32);
-  return buffer
-    .toString("base64url")
-    .replace(/[^a-zA-Z0-9\-._~]/g, "")
-    .slice(0, 64);
+  return crypto.randomBytes(32).toString("base64url");
 }
 
 /**

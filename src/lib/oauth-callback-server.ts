@@ -35,9 +35,11 @@ const ERROR_HTML = `<!DOCTYPE html>
 export function startCallbackServer(
   port: number,
 ): Promise<{ server: http.Server; result: Promise<CallbackResult> }> {
-  return new Promise((resolveServer) => {
+  return new Promise((resolveServer, rejectServer) => {
     let resolveResult: (value: CallbackResult) => void;
     let rejectResult: (reason: Error) => void;
+    let serverStarted = false;
+    let resultSettled = false;
 
     const result = new Promise<CallbackResult>((resolve, reject) => {
       resolveResult = resolve;
@@ -59,10 +61,14 @@ export function startCallbackServer(
       if (error) {
         res.writeHead(400, { "Content-Type": "text/html" });
         res.end(ERROR_HTML);
-        rejectResult(
-          new Error(
-            `OAuth error: ${error} - ${parsed.query["error_description"] ?? ""}`,
-          ),
+        settleResult(
+          () =>
+            rejectResult(
+              new Error(
+                `OAuth error: ${error} - ${parsed.query["error_description"] ?? ""}`,
+              ),
+            ),
+          true,
         );
         return;
       }
@@ -70,23 +76,61 @@ export function startCallbackServer(
       if (typeof code !== "string" || typeof state !== "string") {
         res.writeHead(400, { "Content-Type": "text/html" });
         res.end(ERROR_HTML);
-        rejectResult(new Error("Missing code or state in callback"));
+        settleResult(
+          () => rejectResult(new Error("Missing code or state in callback")),
+          true,
+        );
         return;
       }
 
       res.writeHead(200, { "Content-Type": "text/html" });
       res.end(CALLBACK_HTML);
-      resolveResult({ code, state });
-    });
-
-    server.listen(port, "127.0.0.1", () => {
-      resolveServer({ server, result });
+      settleResult(() => resolveResult({ code, state }), true);
     });
 
     // Timeout after 2 minutes
-    setTimeout(() => {
-      rejectResult(new Error("Login timed out after 2 minutes"));
-      server.close();
+    const timeout = setTimeout(() => {
+      settleResult(
+        () => rejectResult(new Error("Login timed out after 2 minutes")),
+        true,
+      );
     }, 120_000);
+    timeout.unref();
+
+    function settleResult(settle: () => void, closeAfterSettling = false): void {
+      if (resultSettled) return;
+      resultSettled = true;
+      clearTimeout(timeout);
+      settle();
+      if (closeAfterSettling) {
+        closeServer();
+      }
+    }
+
+    function closeServer(): void {
+      try {
+        server.close();
+      } catch {
+        // The caller may also close the server after a successful callback.
+      }
+    }
+
+    server.on("error", (error) => {
+      const normalizedError =
+        error instanceof Error ? error : new Error(String(error));
+      if (!serverStarted) {
+        resultSettled = true;
+        clearTimeout(timeout);
+        rejectServer(normalizedError);
+        return;
+      }
+
+      settleResult(() => rejectResult(normalizedError), true);
+    });
+
+    server.listen(port, "127.0.0.1", () => {
+      serverStarted = true;
+      resolveServer({ server, result });
+    });
   });
 }

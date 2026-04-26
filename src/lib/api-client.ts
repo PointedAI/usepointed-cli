@@ -40,21 +40,45 @@ export async function apiRequest<T>(
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
     Accept: "application/json",
   };
+  const requestBody = body === undefined ? undefined : JSON.stringify(body);
+  if (requestBody !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
 
   const response = await fetch(url, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: requestBody,
   });
 
-  const json = (await response.json()) as ApiResponse<T>;
+  const json = await parseApiResponse<T>(response);
 
   if (!response.ok) {
     throw new ApiError(response.status, json);
   }
 
   return json;
+}
+
+async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const text = await response.text();
+  if (!text.trim()) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    if (!response.ok) {
+      return {
+        error: text || `API request failed with status ${response.status}`,
+      };
+    }
+
+    throw new Error(
+      `Expected JSON response from API but received non-JSON status ${response.status}`,
+    );
+  }
 }

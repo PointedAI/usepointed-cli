@@ -105,6 +105,7 @@ export function createAuthCommand(): Command {
     )
     .action(async (options: { clerkDomain?: string }) => {
       const clerkDomain = options.clerkDomain;
+      let closeCallbackServer: (() => void) | undefined;
       if (!clerkDomain) {
         printError(
           "Clerk domain is required. Set CLERK_FRONTEND_API_URL or pass --clerk-domain.",
@@ -124,6 +125,13 @@ export function createAuthCommand(): Command {
 
         // 3. Start local callback server
         const { server, result } = await startCallbackServer(CALLBACK_PORT);
+        closeCallbackServer = () => {
+          try {
+            server.close();
+          } catch {
+            // The callback server may already be closed after errors or timeouts.
+          }
+        };
 
         // 4. Build authorization URL
         const authUrl = new URL(metadata.authorization_endpoint);
@@ -171,14 +179,19 @@ export function createAuthCommand(): Command {
         ensureConfigFile();
 
         // 10. Shut down server
-        server.close();
+        closeCallbackServer();
+        closeCallbackServer = undefined;
 
         printSuccess("Logged in successfully.");
       } catch (error) {
+        closeCallbackServer?.();
+        closeCallbackServer = undefined;
         printError(
           error instanceof Error ? error.message : "Login failed",
         );
         process.exit(1);
+      } finally {
+        closeCallbackServer?.();
       }
     });
 

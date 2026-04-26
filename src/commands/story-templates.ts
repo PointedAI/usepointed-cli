@@ -71,6 +71,14 @@ function parseBoolean(value: string): boolean {
   throw new Error("Expected true or false");
 }
 
+function parseInteger(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    throw new Error("Expected an integer");
+  }
+  return parsed;
+}
+
 export function createStoryTemplatesCommand(): Command {
   const storyTemplates = new Command("story-templates").description(
     "Manage story templates and enrollment flows",
@@ -98,7 +106,7 @@ export function createStoryTemplatesCommand(): Command {
     .requiredOption("--goal <goal>", "Story collection goal")
     .requiredOption("--initial-question <question>", "Opening survey question")
     .option("--description <description>", "Story template description")
-    .option("--max-rounds <rounds>", "Maximum survey rounds", Number.parseInt)
+    .option("--max-rounds <rounds>", "Maximum survey rounds", parseInteger)
     .action(
       async (options: {
         title: string;
@@ -154,7 +162,7 @@ export function createStoryTemplatesCommand(): Command {
     .option("--goal <goal>", "Story collection goal")
     .option("--initial-question <question>", "Opening survey question")
     .option("--description <description>", "Story template description")
-    .option("--max-rounds <rounds>", "Maximum survey rounds", Number.parseInt)
+    .option("--max-rounds <rounds>", "Maximum survey rounds", parseInteger)
     .option("--data <json>", "Additional JSON request body")
     .option("--input-file <path>", "Path to a JSON request body")
     .action(

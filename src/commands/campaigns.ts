@@ -10,6 +10,14 @@ interface Campaign {
   createdAt: number;
 }
 
+function parseInteger(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    throw new Error("Expected an integer");
+  }
+  return parsed;
+}
+
 export function createCampaignsCommand(): Command {
   const campaigns = new Command("campaigns").description("Manage campaigns");
 
@@ -55,7 +63,7 @@ export function createCampaignsCommand(): Command {
       "Initial survey question",
     )
     .option("--description <description>", "Campaign description")
-    .option("--max-rounds <rounds>", "Maximum number of rounds", parseInt)
+    .option("--max-rounds <rounds>", "Maximum number of rounds", parseInteger)
     .action(
       async (options: {
         accountId: string;
