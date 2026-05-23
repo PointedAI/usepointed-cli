@@ -92,5 +92,43 @@ export function createCampaignsCommand(): Command {
       },
     );
 
+  campaigns
+    .command("update")
+    .description("Update an existing campaign")
+    .argument("<id>", "Campaign ID")
+    .option("--name <name>", "Campaign title")
+    .option("--description <description>", "Campaign description")
+    .option("--context <context>", "Campaign context")
+    .option("--initial-question <question>", "Initial survey question")
+    .option("--max-rounds <rounds>", "Maximum number of rounds", parseInteger)
+    .action(
+      async (
+        id: string,
+        options: {
+          name?: string;
+          description?: string;
+          context?: string;
+          initialQuestion?: string;
+          maxRounds?: number;
+        },
+      ) => {
+        try {
+          const res = await apiRequest<Campaign>("PATCH", `/campaigns/${id}`, {
+            title: options.name,
+            description: options.description,
+            context: options.context,
+            initialQuestion: options.initialQuestion,
+            maxRounds: options.maxRounds,
+          });
+          printJson(res.data);
+        } catch (error) {
+          printError(
+            error instanceof Error ? error.message : "Request failed",
+          );
+          process.exit(1);
+        }
+      },
+    );
+
   return campaigns;
 }

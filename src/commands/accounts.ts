@@ -73,5 +73,40 @@ export function createAccountsCommand(): Command {
       },
     );
 
+  accounts
+    .command("update")
+    .description("Update an existing account")
+    .argument("<id>", "Account ID")
+    .option("--name <name>", "Account name")
+    .option("--industry <industry>", "Industry")
+    .option("--contract-value <value>", "Contract value", parseFloat)
+    .option("--notes <notes>", "Notes")
+    .action(
+      async (
+        id: string,
+        options: {
+          name?: string;
+          industry?: string;
+          contractValue?: number;
+          notes?: string;
+        },
+      ) => {
+        try {
+          const res = await apiRequest<Account>("PATCH", `/accounts/${id}`, {
+            name: options.name,
+            industry: options.industry,
+            contractValue: options.contractValue,
+            notes: options.notes,
+          });
+          printJson(res.data);
+        } catch (error) {
+          printError(
+            error instanceof Error ? error.message : "Request failed",
+          );
+          process.exit(1);
+        }
+      },
+    );
+
   return accounts;
 }

@@ -10,6 +10,7 @@ import { createLinksCommand } from "./commands/links.js";
 import { createResponsesCommand } from "./commands/responses.js";
 import { createStoryTemplatesCommand } from "./commands/story-templates.js";
 import { createInvitesCommand } from "./commands/invites.js";
+import { createSmartIntakeCommand } from "./commands/smart-intake.js";
 
 const program = new Command();
 
@@ -29,5 +30,6 @@ program.addCommand(createLinksCommand());
 program.addCommand(createResponsesCommand());
 program.addCommand(createStoryTemplatesCommand());
 program.addCommand(createInvitesCommand());
+program.addCommand(createSmartIntakeCommand());
 
 program.parse();

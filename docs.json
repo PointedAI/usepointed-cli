@@ -20,6 +20,7 @@
         "pages": [
           "docs/commands",
           "docs/story-templates",
+          "docs/smart-intake",
           "docs/response-exports"
         ]
       },
