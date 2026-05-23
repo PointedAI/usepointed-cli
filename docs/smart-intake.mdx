@@ -1,0 +1,68 @@
+---
+title: Smart intake
+description: Bulk-import accounts and contacts with AI-powered parsing.
+---
+
+Smart intake uses an LLM to parse free-form text (CSV rows, pasted lists, copied tables) into structured account and contact records. The workflow has two steps: **preview** then **commit**.
+
+## Preview
+
+Submit raw text and receive a parsed preview with one row per detected contact.
+
+```bash
+pointed smart-intake preview \
+  --raw-input "Acme Corp, Jane Doe, jane@acme.com
+Globex Inc, John Smith, john@globex.io"
+```
+
+Optionally attach a story template so created accounts are auto-enrolled:
+
+```bash
+pointed smart-intake preview \
+  --raw-input "Acme Corp, Jane Doe, jane@acme.com" \
+  --story-template-id <templateId>
+```
+
+The response includes a `sessionId` and a `rows` array. Each row shows the parsed account name, contact name, contact email, and a status indicating whether it will create new records or match existing ones.
+
+## Commit
+
+After reviewing the preview, commit the session. Supply a resolution for every row.
+
+```bash
+pointed smart-intake commit \
+  --session-id <sessionId> \
+  --resolutions '[{"rowIndex":0,"action":"commit"},{"rowIndex":1,"action":"skip"}]'
+```
+
+Or pass resolutions from a file:
+
+```bash
+pointed smart-intake commit \
+  --session-id <sessionId> \
+  --input-file resolutions.json
+```
+
+### Resolution actions
+
+| Action | Description |
+|---|---|
+| `commit` | Create the account and contact as parsed. |
+| `skip` | Skip this row entirely. |
+| `reroute` | Assign the contact to a different account. Requires `targetAccountId`. |
+| `reuse_existing` | Link to the existing matched contact instead of creating a new one. |
+| `route_to_personal_bucket` | Route the contact to a personal bucket account. |
+| `allow_cross_account_duplicate` | Allow a contact that exists on another account. |
+
+### Reroute example
+
+```json
+[
+  { "rowIndex": 0, "action": "commit" },
+  { "rowIndex": 1, "action": "reroute", "targetAccountId": "<accountId>" }
+]
+```
+
+## Idempotency
+
+Each preview request requires an `idempotencyKey`. The CLI generates one automatically if you omit `--idempotency-key`. Reusing the same key returns the cached preview instead of re-running the LLM.

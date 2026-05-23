@@ -9,6 +9,7 @@ description: Core Pointed CLI commands for accounts, contacts, campaigns, links,
 pointed accounts list
 pointed accounts get <accountId>
 pointed accounts create --name "Acme Corp" --industry "Technology"
+pointed accounts update <accountId> --name "Acme Inc" --contract-value 120000
 ```
 
 ## Contacts
@@ -48,6 +49,7 @@ pointed campaigns create \
   --name "Renewal proof" \
   --context "Customer story collection for renewal" \
   --initial-question "What outcome did this work unlock?"
+pointed campaigns update <campaignId> --name "Updated title" --max-rounds 5
 ```
 
 ## Links
@@ -66,4 +68,13 @@ pointed invites email send-test <inviteId> --email you@example.com
 pointed invites email send <inviteId>
 pointed invites email remind <inviteId>
 pointed invites delivery-issue clear <inviteId>
+```
+
+## Smart intake
+
+See [Smart intake](smart-intake) for the full workflow.
+
+```bash
+pointed smart-intake preview --raw-input "Acme Corp, Jane Doe, jane@acme.com"
+pointed smart-intake commit --session-id <sessionId> --resolutions '[{"rowIndex":0,"action":"commit"}]'
 ```

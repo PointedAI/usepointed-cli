@@ -1,6 +1,6 @@
 # Pointed CLI
 
-Pointed CLI manages accounts, contacts, campaigns, story templates, survey links, invite email operations, and response exports from the terminal.
+Pointed CLI manages accounts, contacts, campaigns, story templates, survey links, invite email operations, smart intake, and response exports from the terminal.
 
 ## Install
 
@@ -51,6 +51,7 @@ pointed auth whoami
 ```bash
 pointed accounts list
 pointed accounts create --name "Acme Corp" --industry "Technology"
+pointed accounts update <accountId> --name "Acme Inc" --contract-value 120000
 
 pointed contacts list --account-id <accountId>
 pointed contacts create --account-id <accountId> --name "Jane Doe" --email jane@example.com
@@ -62,10 +63,21 @@ pointed campaigns create \
   --name "Renewal proof" \
   --context "Collect customer ROI stories" \
   --initial-question "What outcome did this work unlock?"
+pointed campaigns update <campaignId> --name "Updated title" --max-rounds 5
 
 pointed links generate --campaign-id <campaignId>
 pointed responses list --campaign-id <campaignId>
 pointed responses download --campaign-id <campaignId> --output-dir ./pointed-export
+```
+
+## Smart Intake
+
+Bulk-import accounts and contacts with AI-powered parsing:
+
+```bash
+pointed smart-intake preview --raw-input "Acme Corp, Jane Doe, jane@acme.com"
+pointed smart-intake commit --session-id <sessionId> \
+  --resolutions '[{"rowIndex":0,"action":"commit"}]'
 ```
 
 ## Story Templates
