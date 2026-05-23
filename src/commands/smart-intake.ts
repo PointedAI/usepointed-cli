@@ -112,16 +112,21 @@ export function createSmartIntakeCommand(): Command {
           }
 
           const spinner = startSpinner("Committing intake session…");
-          const res = await apiRequest<SmartIntakeCommitResult>(
-            "POST",
-            "/smart-intake/commit",
-            {
-              sessionId: options.sessionId,
-              resolutions,
-            },
-          );
-          spinner.stop();
-          printJson(res.data);
+          try {
+            const res = await apiRequest<SmartIntakeCommitResult>(
+              "POST",
+              "/smart-intake/commit",
+              {
+                sessionId: options.sessionId,
+                resolutions,
+              },
+            );
+            spinner.stop();
+            printJson(res.data);
+          } catch (error) {
+            spinner.stop();
+            throw error;
+          }
         } catch (error) {
           printError(
             error instanceof Error ? error.message : "Request failed",

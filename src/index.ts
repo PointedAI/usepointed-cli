@@ -19,7 +19,7 @@ program
   .description(
     "Pointed CLI for managing accounts, contacts, campaigns, survey links, and response exports from the terminal.",
   )
-  .version("0.1.0");
+  .version("0.2.0");
 
 program.addCommand(createAuthCommand());
 program.addCommand(createConfigCommand());
