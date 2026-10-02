@@ -85,6 +85,29 @@ interface CampaignExportPayload {
   };
   totalResponses: number;
   responses: ExportResponseBundle[];
+  isDone?: boolean;
+  continueCursor?: string | null;
+}
+
+async function campaignExport(campaignId: string, includeTest: boolean) {
+  let combined: CampaignExportPayload | null = null;
+  let cursor: string | undefined;
+  const seen = new Set<string>();
+  do {
+    const result = await apiRequest<CampaignExportPayload>("GET", `/campaigns/${campaignId}/export`, undefined, {
+      pageSize: "1", ...(includeTest ? { includeTest: "true" } : {}), ...(cursor ? { cursor } : {}),
+    });
+    if (!result.data) return { ...result, data: null };
+    if (!combined) combined = { ...result.data, responses: [], totalResponses: 0 };
+    combined.responses.push(...result.data.responses);
+    combined.totalResponses += result.data.responses.length;
+    if (result.data.isDone !== false) return { ...result, data: combined };
+    const next = result.data.continueCursor;
+    if (typeof next !== "string" || !next || seen.has(next)) throw new Error("Campaign export returned an invalid continuation cursor");
+    seen.add(next);
+    cursor = next;
+  } while (cursor);
+  throw new Error("Campaign export did not complete");
 }
 
 function slugify(text: string): string {
@@ -228,12 +251,7 @@ export function createResponsesCommand(): Command {
             }
           } else {
             // Full campaign export
-            const res = await apiRequest<CampaignExportPayload>(
-              "GET",
-              `/campaigns/${options.campaignId}/export`,
-              undefined,
-              options.includeTest ? { includeTest: "true" } : undefined,
-            );
+            const res = await campaignExport(options.campaignId, options.includeTest);
             if (!res.data) {
               printError("Campaign not found");
               process.exit(1);
@@ -310,12 +328,7 @@ export function createResponsesCommand(): Command {
     )
     .action(async (options: { campaignId: string; includeTest: boolean }) => {
       try {
-        const res = await apiRequest<CampaignExportPayload>(
-          "GET",
-          `/campaigns/${options.campaignId}/export`,
-          undefined,
-          options.includeTest ? { includeTest: "true" } : undefined,
-        );
+        const res = await campaignExport(options.campaignId, options.includeTest);
         if (!res.data) {
           printError("Campaign not found");
           process.exit(1);

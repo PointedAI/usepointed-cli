@@ -270,3 +270,70 @@ test('local credential writes fail closed when the platform cannot verify owners
   assert.match(result.stderr, /POSIX ownership/);
   assert.equal(fs.existsSync(path.join(home, '.pointed', 'credentials.json')), false);
 });
+
+test('campaign download and list follow bounded pages, including empty filtered pages', async t => {
+  const home = temporary(t), output = path.join(home, 'exports');
+  const bundles = Array.from({ length: 26 }, (_, index) => {
+    const result = bundle(); result.response._id = `response-${index}`; return result;
+  });
+  const pageRequests = [], responseRequests = [];
+  const server = await api(t, req => {
+    const url = new URL(req.url, 'http://localhost');
+    if (url.pathname === '/api/cli/v1/campaigns/campaign-1/export') {
+      pageRequests.push(url.searchParams);
+      if (url.searchParams.get('pageSize') !== '1') return { status: 413, body: { error: 'EXPORT_PAGINATION_REQUIRED: update the CLI' } };
+      const cursor = url.searchParams.get('cursor');
+      const index = cursor === null ? 0 : Number(cursor.replace('page-', ''));
+      const responses = index === 1 ? [] : [bundles[index === 0 ? 0 : index - 1]];
+      return { body: { data: { campaign: bundles[0].campaign, totalResponses: responses.length, responses,
+        isDone: index === 26, continueCursor: index === 26 ? null : `page-${index + 1}` } } };
+    }
+    const id = url.pathname.match(/\/responses\/(response-\d+)\/export$/)?.[1];
+    responseRequests.push(id);
+    const selected = bundles.find(entry => entry.response._id === id);
+    return { body: { data: { bundle: selected, downloads: { videos: [] } } } };
+  });
+  for (const command of ['download', 'list']) {
+    pageRequests.length = 0;
+    const result = await child([cli, 'responses', command, '--campaign-id', 'campaign-1', '--include-test',
+      ...(command === 'download' ? ['--output-dir', output] : [])], home,
+      { POINTED_API_URL: server.url, POINTED_API_KEY: 'fixture-key' });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(pageRequests.length, 27);
+    assert.deepEqual(pageRequests.map(params => params.get('cursor')), [null, ...Array.from({ length: 26 }, (_, index) => `page-${index + 1}`)]);
+    for (const params of pageRequests) {
+      assert.equal(params.get('pageSize'), '1'); assert.equal(params.get('includeTest'), 'true');
+    }
+    if (command === 'download') assert.match(result.stdout, /Exported 26 of 26 response/);
+    else assert.deepEqual(JSON.parse(result.stdout).map(row => row.responseId), bundles.map(entry => entry.response._id));
+  }
+  assert.deepEqual(responseRequests, bundles.map(entry => entry.response._id));
+  assertPrivateTree(output);
+  const campaignDir = path.join(output, fs.readdirSync(output)[0]);
+  assert.equal(fs.readdirSync(campaignDir).filter(name => name.startsWith('response-')).length, 26);
+});
+
+test('campaign pagination fails without partial exports on invalid continuations or later API errors', async t => {
+  for (const failure of ['repeated', 'missing', 'api-error']) {
+    const home = temporary(t), output = path.join(home, 'exports');
+    let requests = 0;
+    const server = await api(t, () => {
+      const firstPage = requests++ % 2 === 0;
+      if (!firstPage && failure === 'api-error') return { status: 503, body: { error: 'Later page unavailable' } };
+      return { body: { data: { campaign: bundle().campaign,
+        totalResponses: firstPage ? 1 : 0, responses: firstPage ? [bundle()] : [], isDone: false,
+        ...(firstPage || failure === 'repeated' ? { continueCursor: 'same-cursor' } : {}) } } };
+    });
+    for (const command of ['download', 'list']) {
+      const before = server.count();
+      const result = await child([cli, 'responses', command, '--campaign-id', 'campaign-1',
+        ...(command === 'download' ? ['--output-dir', output] : [])], home,
+        { POINTED_API_URL: server.url, POINTED_API_KEY: 'fixture-key' });
+      assert.equal(result.code, 1);
+      assert.match(result.stderr, failure === 'api-error' ? /Later page unavailable/ : /invalid continuation cursor/);
+      assert.doesNotMatch(result.stdout, /Exported/);
+      assert.equal(server.count() - before, 2);
+      assert.equal(fs.existsSync(output), false);
+    }
+  }
+});
