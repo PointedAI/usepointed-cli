@@ -34,6 +34,7 @@ const ERROR_HTML = `<!DOCTYPE html>
  */
 export function startCallbackServer(
   port: number,
+  expectedState: string,
 ): Promise<{ server: http.Server; result: Promise<CallbackResult> }> {
   return new Promise((resolveServer, rejectServer) => {
     let resolveResult: (value: CallbackResult) => void;
@@ -46,17 +47,30 @@ export function startCallbackServer(
       rejectResult = reject;
     });
 
+    // A callback may arrive before the caller finishes opening the browser.
+    // Keep a rejection handler attached without changing the returned result.
+    void result.catch(() => {});
     const server = http.createServer((req, res) => {
-      if (!req.url?.startsWith("/callback")) {
+      let parsed: url.UrlWithParsedQuery;
+      try { parsed = url.parse(req.url ?? "", true); }
+      catch { res.writeHead(400); res.end("Invalid callback"); return; }
+      if (req.method !== "GET" || parsed.pathname !== "/callback") {
         res.writeHead(404);
         res.end("Not found");
         return;
       }
 
-      const parsed = url.parse(req.url, true);
       const code = parsed.query["code"];
       const state = parsed.query["state"];
       const error = parsed.query["error"];
+
+      if (typeof state !== "string" || !expectedState || state !== expectedState ||
+          (error !== undefined && (typeof error !== "string" || !error)) ||
+          (error === undefined && (typeof code !== "string" || !code))) {
+        res.writeHead(400, { "Content-Type": "text/html" });
+        res.end(ERROR_HTML);
+        return;
+      }
 
       if (error) {
         res.writeHead(400, { "Content-Type": "text/html" });
@@ -73,19 +87,9 @@ export function startCallbackServer(
         return;
       }
 
-      if (typeof code !== "string" || typeof state !== "string") {
-        res.writeHead(400, { "Content-Type": "text/html" });
-        res.end(ERROR_HTML);
-        settleResult(
-          () => rejectResult(new Error("Missing code or state in callback")),
-          true,
-        );
-        return;
-      }
-
       res.writeHead(200, { "Content-Type": "text/html" });
       res.end(CALLBACK_HTML);
-      settleResult(() => resolveResult({ code, state }), true);
+      settleResult(() => resolveResult({ code: code as string, state }), true);
     });
 
     // Timeout after 2 minutes

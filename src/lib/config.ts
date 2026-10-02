@@ -1,4 +1,4 @@
-import * as fs from "node:fs";
+import { readPrivateState, writePrivateState } from "./private-files.js";
 import * as path from "node:path";
 import * as os from "node:os";
 
@@ -19,37 +19,20 @@ const DEFAULT_CONFIG: PointedConfig = {
 export type ConfigKey = keyof PointedConfig;
 const CONFIG_KEYS: ConfigKey[] = ["apiBaseUrl", "defaultFormat", "defaultOrg"];
 
-function ensureConfigDir(): void {
-  if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  }
-}
-
 export function loadConfig(): PointedConfig {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      const raw = fs.readFileSync(CONFIG_FILE, "utf-8");
-      const parsed = JSON.parse(raw) as Partial<PointedConfig>;
-      return { ...DEFAULT_CONFIG, ...parsed };
-    }
-  } catch {
-    // Fall through to defaults
-  }
-  return { ...DEFAULT_CONFIG };
+  const raw = readPrivateState(CONFIG_FILE);
+  if (raw === null) return { ...DEFAULT_CONFIG };
+  try { return { ...DEFAULT_CONFIG, ...JSON.parse(raw) as Partial<PointedConfig> }; }
+  catch { return { ...DEFAULT_CONFIG }; }
 }
 
 export function saveConfig(config: PointedConfig): void {
-  ensureConfigDir();
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), {
-    mode: 0o600,
-  });
+  writePrivateState(CONFIG_FILE, JSON.stringify(config, null, 2));
 }
 
 export function ensureConfigFile(): PointedConfig {
   const config = loadConfig();
-  if (!fs.existsSync(CONFIG_FILE)) {
-    saveConfig(config);
-  }
+  if (readPrivateState(CONFIG_FILE) === null) saveConfig(config);
   return config;
 }
 

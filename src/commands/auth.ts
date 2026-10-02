@@ -124,7 +124,7 @@ export function createAuthCommand(): Command {
         const state = generateState();
 
         // 3. Start local callback server
-        const { server, result } = await startCallbackServer(CALLBACK_PORT);
+        const { server, result } = await startCallbackServer(CALLBACK_PORT, state);
         closeCallbackServer = () => {
           try {
             server.close();
@@ -149,9 +149,7 @@ export function createAuthCommand(): Command {
         console.log(
           "Waiting for authentication (press Ctrl+C to cancel)...\n",
         );
-        console.log(
-          `If the browser didn't open, visit:\n${authUrl.toString()}\n`,
-        );
+        printSuccess(`If the browser didn't open, visit: ${authUrl.toString()}`);
 
         // 6. Wait for callback
         const callback = await result;
