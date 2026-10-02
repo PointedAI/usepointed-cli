@@ -1,4 +1,4 @@
-import * as fs from "node:fs";
+import { readPrivateState, writePrivateState, removePrivateState } from "./private-files.js";
 import * as path from "node:path";
 import * as os from "node:os";
 
@@ -12,39 +12,19 @@ export interface StoredCredentials {
 const CREDENTIALS_DIR = path.join(os.homedir(), ".pointed");
 const CREDENTIALS_FILE = path.join(CREDENTIALS_DIR, "credentials.json");
 
-function ensureDir(): void {
-  if (!fs.existsSync(CREDENTIALS_DIR)) {
-    fs.mkdirSync(CREDENTIALS_DIR, { recursive: true, mode: 0o700 });
-  }
-}
-
 export function loadCredentials(): StoredCredentials | null {
-  try {
-    if (fs.existsSync(CREDENTIALS_FILE)) {
-      const raw = fs.readFileSync(CREDENTIALS_FILE, "utf-8");
-      return JSON.parse(raw) as StoredCredentials;
-    }
-  } catch {
-    // Corrupt or unreadable file
-  }
-  return null;
+  const raw = readPrivateState(CREDENTIALS_FILE);
+  if (raw === null) return null;
+  try { return JSON.parse(raw) as StoredCredentials; }
+  catch { return null; }
 }
 
 export function saveCredentials(credentials: StoredCredentials): void {
-  ensureDir();
-  fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(credentials, null, 2), {
-    mode: 0o600,
-  });
+  writePrivateState(CREDENTIALS_FILE, JSON.stringify(credentials, null, 2));
 }
 
 export function clearCredentials(): void {
-  try {
-    if (fs.existsSync(CREDENTIALS_FILE)) {
-      fs.unlinkSync(CREDENTIALS_FILE);
-    }
-  } catch {
-    // Ignore errors during cleanup
-  }
+  removePrivateState(CREDENTIALS_FILE);
 }
 
 /**

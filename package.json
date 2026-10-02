@@ -24,7 +24,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "tsc --noEmit",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "test": "npm run build && node --test tests/*.test.mjs"
   },
   "publishConfig": {
     "access": "public"

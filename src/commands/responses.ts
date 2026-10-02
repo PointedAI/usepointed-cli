@@ -1,8 +1,7 @@
 import { Command } from "commander";
-import { writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { createPrivateExportDirectory, exportFilePath, writePrivateExport as writeFile } from "../lib/private-files.js";
 import { apiRequest } from "../lib/api-client.js";
-import { printJson, printError, printSuccess } from "../lib/output.js";
+import { printJson, printError, printSuccess, printWarning } from "../lib/output.js";
 
 interface ExportRound {
   roundNumber: number;
@@ -114,16 +113,13 @@ async function writeResponseBundle(
   const dateSlug = new Date(bundle.response.createdAt)
     .toISOString()
     .slice(0, 10);
-  const responseIdSuffix = bundle.response._id.split(":").pop() ?? bundle.response._id;
-  const responseDir = join(
-    outputDir,
-    `response-${contactSlug}-${dateSlug}-${responseIdSuffix}`,
-  );
-  await mkdir(responseDir, { recursive: true });
+  const responseIdSuffix = slugify(bundle.response._id.split(":").pop() ?? bundle.response._id).slice(0, 64);
+  const responseDir = createPrivateExportDirectory(outputDir,
+    `response-${contactSlug.slice(0, 64)}-${dateSlug}-${responseIdSuffix}`);
 
   // Write the full bundle JSON
   await writeFile(
-    join(responseDir, "response.json"),
+    exportFilePath(responseDir, "response.json"),
     JSON.stringify(bundle, null, 2),
   );
 
@@ -131,7 +127,7 @@ async function writeResponseBundle(
   for (const round of bundle.rounds) {
     if (round.transcript) {
       await writeFile(
-        join(responseDir, `round-${round.roundNumber}-transcript.txt`),
+        exportFilePath(responseDir, `round-${round.roundNumber}-transcript.txt`),
         `Question: ${round.questionText}\n\n${round.transcript}`,
       );
     }
@@ -140,7 +136,7 @@ async function writeResponseBundle(
   // Write AI summary if available
   if (bundle.response.aiSummary) {
     await writeFile(
-      join(responseDir, "ai-summary.txt"),
+      exportFilePath(responseDir, "ai-summary.txt"),
       bundle.response.aiSummary,
     );
   }
@@ -148,14 +144,14 @@ async function writeResponseBundle(
   // Write insights if available
   if (bundle.insights.available) {
     await writeFile(
-      join(responseDir, "insights.json"),
+      exportFilePath(responseDir, "insights.json"),
       JSON.stringify(bundle.insights, null, 2),
     );
   }
 
   // Write manifest
   await writeFile(
-    join(responseDir, "manifest.json"),
+    exportFilePath(responseDir, "manifest.json"),
     JSON.stringify(bundle.manifest, null, 2),
   );
 
@@ -169,7 +165,7 @@ async function writeResponseBundle(
     }
 
     try {
-      await downloadVideoFile(join(responseDir, video.fileName), video.url);
+      await downloadVideoFile(exportFilePath(responseDir, video.fileName), video.url);
     } catch (error) {
       warnings.push(
         `Round ${video.roundNumber}: ${
@@ -226,7 +222,7 @@ export function createResponsesCommand(): Command {
             );
             printSuccess(`Exported response to ${dir}`);
             if (warnings.length > 0) {
-              console.error(
+              printWarning(
                 `Warnings:\n${warnings.map((w) => `  - ${w}`).join("\n")}`,
               );
             }
@@ -245,15 +241,12 @@ export function createResponsesCommand(): Command {
             const campaignSlug = slugify(
               res.data.campaign.title || "campaign",
             );
-            const campaignDir = join(
-              options.outputDir,
-              `campaign-${campaignSlug}`,
-            );
-            await mkdir(campaignDir, { recursive: true });
+            const campaignDir = createPrivateExportDirectory(options.outputDir,
+              `campaign-${campaignSlug.slice(0, 64)}`);
 
             // Write campaign-level metadata
             await writeFile(
-              join(campaignDir, "campaign.json"),
+              exportFilePath(campaignDir, "campaign.json"),
               JSON.stringify(res.data.campaign, null, 2),
             );
 
@@ -267,7 +260,7 @@ export function createResponsesCommand(): Command {
                 );
                 if (!responseExport.data) {
                   totalWarnings += 1;
-                  console.error(
+                  printWarning(
                     `Warning: failed to load downloadable assets for response ${bundle.response._id}`,
                   );
                   continue;
@@ -280,7 +273,7 @@ export function createResponsesCommand(): Command {
                 exportedResponses += 1;
               } catch (error) {
                 totalWarnings += 1;
-                console.error(
+                printWarning(
                   `Warning: failed to export response ${bundle.response._id}: ${
                     error instanceof Error ? error.message : "request failed"
                   }`,
@@ -292,7 +285,7 @@ export function createResponsesCommand(): Command {
               `Exported ${exportedResponses} of ${res.data.totalResponses} response(s) to ${campaignDir}`,
             );
             if (totalWarnings > 0) {
-              console.error(
+              printWarning(
                 `${totalWarnings} processing warning(s) across responses. Check individual manifest.json files for details.`,
               );
             }

@@ -1,3 +1,4 @@
+import { terminalText } from "./output.js";
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 export interface Spinner {
@@ -5,6 +6,7 @@ export interface Spinner {
 }
 
 export function startSpinner(message: string): Spinner {
+  message = terminalText(message);
   if (!process.stderr.isTTY) {
     process.stderr.write(`${message}\n`);
     return { stop() {} };
@@ -21,7 +23,7 @@ export function startSpinner(message: string): Spinner {
       clearInterval(interval);
       process.stderr.write("\r\x1b[K");
       if (finalMessage) {
-        process.stderr.write(`${finalMessage}\n`);
+        process.stderr.write(`${terminalText(finalMessage)}\n`);
       }
     },
   };

@@ -120,6 +120,14 @@ Useful environment overrides:
 - `CLERK_FRONTEND_API_URL`: override hosted Clerk OAuth discovery
 - `CLERK_OAUTH_CLIENT_ID`: override the public OAuth client ID for development
 
+## Local file safety
+
+Local file security checks require POSIX ownership and permissions (macOS/Linux); Windows ACL validation is not implemented. Unsupported ownership checks fail closed for local state and exports.
+
+OAuth state uses an owned, private `~/.pointed` directory (0700) and regular JSON files (0600). Reads, saves, and logout refuse unsafe permissions, symlinks, hard links, or files owned by another user. Fix unsafe existing state before retrying; the CLI does not follow or overwrite those objects.
+
+Response downloads create a fresh private directory for each export, with owner-only files. Repeated downloads preserve earlier exports. The selected output directory must be owned by you and not writable by other users. Exported filenames cannot escape that directory.
+
 ## Documentation
 
 Mintlify docs live in this repository under `docs/`.
@@ -129,6 +137,7 @@ Mintlify docs live in this repository under `docs/`.
 ```bash
 npm install
 npm run lint
+npm test
 npm run build
 node dist/index.js --help
 npm pack --dry-run
