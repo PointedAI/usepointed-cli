@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { apiRequest } from "../lib/api-client.js";
 import { printJson, printError } from "../lib/output.js";
+import { encodeId, parsePositiveInteger } from "../lib/validation.js";
 
 interface Campaign {
   _id: string;
@@ -8,14 +9,6 @@ interface Campaign {
   title: string;
   status: string;
   createdAt: number;
-}
-
-function parseInteger(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed)) {
-    throw new Error("Expected an integer");
-  }
-  return parsed;
 }
 
 export function createCampaignsCommand(): Command {
@@ -27,8 +20,8 @@ export function createCampaignsCommand(): Command {
     .option("--account-id <id>", "Filter by account ID")
     .action(async (options: { accountId?: string }) => {
       try {
-        const query = options.accountId
-          ? `?accountId=${encodeURIComponent(options.accountId)}`
+        const query = options.accountId !== undefined
+          ? `?accountId=${encodeId(options.accountId)}`
           : "";
         const res = await apiRequest<Campaign[]>("GET", `/campaigns${query}`);
         printJson(res.data);
@@ -44,7 +37,7 @@ export function createCampaignsCommand(): Command {
     .argument("<id>", "Campaign ID")
     .action(async (id: string) => {
       try {
-        const res = await apiRequest<Campaign>("GET", `/campaigns/${id}`);
+        const res = await apiRequest<Campaign>("GET", `/campaigns/${encodeId(id)}`);
         printJson(res.data);
       } catch (error) {
         printError(error instanceof Error ? error.message : "Request failed");
@@ -63,7 +56,7 @@ export function createCampaignsCommand(): Command {
       "Initial survey question",
     )
     .option("--description <description>", "Campaign description")
-    .option("--max-rounds <rounds>", "Maximum number of rounds", parseInteger)
+    .option("--max-rounds <rounds>", "Maximum number of rounds", parsePositiveInteger)
     .action(
       async (options: {
         accountId: string;
@@ -100,7 +93,7 @@ export function createCampaignsCommand(): Command {
     .option("--description <description>", "Campaign description")
     .option("--context <context>", "Campaign context")
     .option("--initial-question <question>", "Initial survey question")
-    .option("--max-rounds <rounds>", "Maximum number of rounds", parseInteger)
+    .option("--max-rounds <rounds>", "Maximum number of rounds", parsePositiveInteger)
     .action(
       async (
         id: string,
@@ -113,7 +106,7 @@ export function createCampaignsCommand(): Command {
         },
       ) => {
         try {
-          const res = await apiRequest<Campaign>("PATCH", `/campaigns/${id}`, {
+          const res = await apiRequest<Campaign>("PATCH", `/campaigns/${encodeId(id)}`, {
             title: options.name,
             description: options.description,
             context: options.context,

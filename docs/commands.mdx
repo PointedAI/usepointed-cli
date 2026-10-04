@@ -12,6 +12,8 @@ pointed accounts create --name "Acme Corp" --industry "Technology"
 pointed accounts update <accountId> --name "Acme Inc" --contract-value 120000
 ```
 
+Contract values must be finite, nonnegative numbers without currency symbols or thousands separators. For example, use `120000`, not `120,000`.
+
 ## Contacts
 
 ```bash
@@ -39,6 +41,8 @@ pointed contacts create-batch --account-id <accountId> --input-file contacts.jso
 ]
 ```
 
+Batch creation prints the complete result as JSON and exits with status 1 if any row fails. Existing contacts are reported separately and do not count as failed rows. Contact department fields are not supported; use `--title` for a job title.
+
 ## Campaigns
 
 ```bash
@@ -52,6 +56,8 @@ pointed campaigns create \
 pointed campaigns update <campaignId> --name "Updated title" --max-rounds 5
 ```
 
+`--max-rounds` requires a positive integer for campaigns and story templates.
+
 ## Links
 
 ```bash
@@ -59,6 +65,8 @@ pointed links generate --campaign-id <campaignId>
 pointed links generate --campaign-id <campaignId> --contact-ids id1,id2
 pointed links generate --campaign-id <campaignId> --contact-emails jane@example.com,john@example.com
 ```
+
+Omitting both contact selectors includes all account contacts. An explicitly empty selector is rejected, including an empty shell variable. Link generation prints all results and exits with status 1 if any selected contact fails.
 
 ## Invite email
 

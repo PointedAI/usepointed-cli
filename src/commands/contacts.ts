@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import { Command } from "commander";
 import { ApiError, apiRequest } from "../lib/api-client.js";
 import { printJson, printError } from "../lib/output.js";
+import { encodeId } from "../lib/validation.js";
 
 interface Contact {
   _id: string;
@@ -9,7 +10,6 @@ interface Contact {
   name: string;
   email: string;
   title?: string;
-  department?: string;
   createdAt: number;
 }
 
@@ -69,7 +69,7 @@ export function createContactsCommand(): Command {
       try {
         const res = await apiRequest<Contact[]>(
           "GET",
-          `/contacts?accountId=${encodeURIComponent(options.accountId)}`,
+          `/contacts?accountId=${encodeId(options.accountId)}`,
         );
         printJson(res.data);
       } catch (error) {
@@ -84,7 +84,7 @@ export function createContactsCommand(): Command {
     .argument("<id>", "Contact ID")
     .action(async (id: string) => {
       try {
-        const res = await apiRequest<Contact>("GET", `/contacts/${id}`);
+        const res = await apiRequest<Contact>("GET", `/contacts/${encodeId(id)}`);
         printJson(res.data);
       } catch (error) {
         printError(error instanceof Error ? error.message : "Request failed");
@@ -100,7 +100,6 @@ export function createContactsCommand(): Command {
     .requiredOption("--email <email>", "Contact email")
     .option("--campaign-id <id>", "Campaign ID for duplicate-contact link reuse")
     .option("--title <title>", "Job title")
-    .option("--department <department>", "Department")
     .action(
       async (options: {
         accountId: string;
@@ -108,7 +107,6 @@ export function createContactsCommand(): Command {
         name: string;
         email: string;
         title?: string;
-        department?: string;
       }) => {
         try {
           const res = await apiRequest<Contact>("POST", "/contacts", {
@@ -117,7 +115,6 @@ export function createContactsCommand(): Command {
             name: options.name,
             email: options.email,
             title: options.title,
-            department: options.department,
           });
           printJson(res.data);
         } catch (error) {
@@ -166,6 +163,9 @@ export function createContactsCommand(): Command {
             },
           );
           printJson(res.data);
+          if ((res.data?.failed ?? 0) > 0) {
+            process.exitCode = 1;
+          }
         } catch (error) {
           printError(
             error instanceof Error ? error.message : "Request failed",
@@ -182,7 +182,6 @@ export function createContactsCommand(): Command {
     .option("--name <name>", "Contact name")
     .option("--email <email>", "Contact email")
     .option("--title <title>", "Job title")
-    .option("--department <department>", "Department")
     .action(
       async (
         id: string,
@@ -190,15 +189,13 @@ export function createContactsCommand(): Command {
           name?: string;
           email?: string;
           title?: string;
-          department?: string;
         },
       ) => {
         try {
-          const res = await apiRequest<Contact>("PATCH", `/contacts/${id}`, {
+          const res = await apiRequest<Contact>("PATCH", `/contacts/${encodeId(id)}`, {
             name: options.name,
             email: options.email,
             title: options.title,
-            department: options.department,
           });
           printJson(res.data);
         } catch (error) {
@@ -218,7 +215,7 @@ export function createContactsCommand(): Command {
       try {
         const res = await apiRequest<{ deleted: boolean }>(
           "DELETE",
-          `/contacts/${id}`,
+          `/contacts/${encodeId(id)}`,
         );
         printJson(res.data);
       } catch (error) {

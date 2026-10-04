@@ -2,6 +2,11 @@ import { Command } from "commander";
 import { readFile } from "node:fs/promises";
 import { apiRequest } from "../lib/api-client.js";
 import { printJson, printError } from "../lib/output.js";
+import {
+  encodeId,
+  parseContactSelector,
+  parsePositiveInteger,
+} from "../lib/validation.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -58,25 +63,10 @@ async function buildRequestBody(options: {
   return {};
 }
 
-function parseCsv(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function parseBoolean(value: string): boolean {
   if (value === "true") return true;
   if (value === "false") return false;
   throw new Error("Expected true or false");
-}
-
-function parseInteger(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed)) {
-    throw new Error("Expected an integer");
-  }
-  return parsed;
 }
 
 export function createStoryTemplatesCommand(): Command {
@@ -106,7 +96,7 @@ export function createStoryTemplatesCommand(): Command {
     .requiredOption("--goal <goal>", "Story collection goal")
     .requiredOption("--initial-question <question>", "Opening survey question")
     .option("--description <description>", "Story template description")
-    .option("--max-rounds <rounds>", "Maximum survey rounds", parseInteger)
+    .option("--max-rounds <rounds>", "Maximum survey rounds", parsePositiveInteger)
     .action(
       async (options: {
         title: string;
@@ -143,7 +133,7 @@ export function createStoryTemplatesCommand(): Command {
       try {
         const res = await apiRequest<StoryTemplate>(
           "GET",
-          `/story-templates/${id}`,
+          `/story-templates/${encodeId(id)}`,
         );
         printJson(res.data);
       } catch (error) {
@@ -162,7 +152,7 @@ export function createStoryTemplatesCommand(): Command {
     .option("--goal <goal>", "Story collection goal")
     .option("--initial-question <question>", "Opening survey question")
     .option("--description <description>", "Story template description")
-    .option("--max-rounds <rounds>", "Maximum survey rounds", parseInteger)
+    .option("--max-rounds <rounds>", "Maximum survey rounds", parsePositiveInteger)
     .option("--data <json>", "Additional JSON request body")
     .option("--input-file <path>", "Path to a JSON request body")
     .action(
@@ -200,7 +190,7 @@ export function createStoryTemplatesCommand(): Command {
 
           const res = await apiRequest<StoryTemplate>(
             "PATCH",
-            `/story-templates/${id}`,
+            `/story-templates/${encodeId(id)}`,
             body,
           );
           printJson(res.data);
@@ -219,7 +209,7 @@ export function createStoryTemplatesCommand(): Command {
       try {
         const res = await apiRequest<{ deleted: boolean }>(
           "DELETE",
-          `/story-templates/${id}`,
+          `/story-templates/${encodeId(id)}`,
         );
         printJson(res.data);
       } catch (error) {
@@ -236,7 +226,7 @@ export function createStoryTemplatesCommand(): Command {
       try {
         const res = await apiRequest<StoryTemplateEnrollmentOptions>(
           "GET",
-          `/story-templates/${id}/enrollment-options`,
+          `/story-templates/${encodeId(id)}/enrollment-options`,
         );
         printJson(res.data);
       } catch (error) {
@@ -269,22 +259,36 @@ export function createStoryTemplatesCommand(): Command {
       ) => {
         try {
           const body = await buildRequestBody(options);
-          if (options.accountId) {
-            body["accountId"] = options.accountId;
+          if (options.accountId !== undefined) {
+            body["accountId"] = encodeId(options.accountId);
           }
-          if (options.contactIds) {
-            body["contactIds"] = parseCsv(options.contactIds);
+          if (options.contactIds !== undefined) {
+            body["contactIds"] = parseContactSelector(
+              options.contactIds,
+              "--contact-ids",
+            );
           }
-          if (options.contactEmails) {
-            body["contactEmails"] = parseCsv(options.contactEmails);
+          if (options.contactEmails !== undefined) {
+            body["contactEmails"] = parseContactSelector(
+              options.contactEmails,
+              "--contact-emails",
+            );
           }
           if (options.autoIncludeNewContacts !== undefined) {
             body["autoIncludeNewContacts"] = options.autoIncludeNewContacts;
           }
+          if (
+            body["contactIds"] !== undefined &&
+            body["contactEmails"] !== undefined
+          ) {
+            throw new Error(
+              "Pass either contact IDs or contact emails, not both",
+            );
+          }
 
           const res = await apiRequest<StoryTemplateEnrollment>(
             "POST",
-            `/story-templates/${id}/enroll`,
+            `/story-templates/${encodeId(id)}/enroll`,
             body,
           );
           printJson(res.data);
@@ -306,7 +310,7 @@ export function createStoryTemplatesCommand(): Command {
       try {
         const res = await apiRequest<StoryTemplateEnrollment>(
           "GET",
-          `/story-templates/${id}/accounts/${accountId}`,
+          `/story-templates/${encodeId(id)}/accounts/${encodeId(accountId)}`,
         );
         printJson(res.data);
       } catch (error) {
@@ -330,7 +334,7 @@ export function createStoryTemplatesCommand(): Command {
         try {
           const res = await apiRequest<StoryTemplateEnrollment>(
             "PATCH",
-            `/story-templates/${id}/accounts/${accountId}`,
+            `/story-templates/${encodeId(id)}/accounts/${encodeId(accountId)}`,
             {
               autoIncludeNewContacts: parseBoolean(options.enabled),
             },

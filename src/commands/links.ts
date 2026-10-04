@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { apiRequest } from "../lib/api-client.js";
 import { printJson, printError } from "../lib/output.js";
+import { encodeId, parseContactSelector } from "../lib/validation.js";
 
 interface SurveyLinkResult {
   index: number;
@@ -43,38 +44,47 @@ export function createLinksCommand(): Command {
         contactIds?: string;
         contactEmails?: string;
       }) => {
-      try {
-        if (options.contactIds && options.contactEmails) {
-          throw new Error(
-            "Pass either --contact-ids or --contact-emails, not both",
+        try {
+          if (
+            options.contactIds !== undefined &&
+            options.contactEmails !== undefined
+          ) {
+            throw new Error(
+              "Pass either --contact-ids or --contact-emails, not both",
+            );
+          }
+
+          const body: Record<string, unknown> = {
+            campaignId: options.campaignId,
+          };
+          if (options.contactIds !== undefined) {
+            body["contactIds"] = parseContactSelector(
+              options.contactIds,
+              "--contact-ids",
+            );
+          }
+          if (options.contactEmails !== undefined) {
+            body["contactEmails"] = parseContactSelector(
+              options.contactEmails,
+              "--contact-emails",
+            );
+          }
+
+          const res = await apiRequest<SurveyLinkBatchResponse>(
+            "POST",
+            `/campaigns/${encodeId(options.campaignId)}/links`,
+            body,
           );
+          printJson(res.data);
+          if ((res.data?.failed ?? 0) > 0) {
+            process.exitCode = 1;
+          }
+        } catch (error) {
+          printError(error instanceof Error ? error.message : "Request failed");
+          process.exit(1);
         }
-
-        const body: Record<string, unknown> = {
-          campaignId: options.campaignId,
-        };
-        if (options.contactIds) {
-          body["contactIds"] = options.contactIds
-            .split(",")
-            .map((id) => id.trim());
-        }
-        if (options.contactEmails) {
-          body["contactEmails"] = options.contactEmails
-            .split(",")
-            .map((email) => email.trim());
-        }
-
-        const res = await apiRequest<SurveyLinkBatchResponse>(
-          "POST",
-          `/campaigns/${options.campaignId}/links`,
-          body,
-        );
-        printJson(res.data);
-      } catch (error) {
-        printError(error instanceof Error ? error.message : "Request failed");
-        process.exit(1);
-      }
-    });
+      },
+    );
 
   return links;
 }
