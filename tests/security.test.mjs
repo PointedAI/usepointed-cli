@@ -126,7 +126,7 @@ test('API-derived video paths and response identifiers cannot escape a fresh exp
   });
   const victim = path.join(f.output, 'victim.txt'); fs.mkdirSync(f.output, { mode: 0o700 }); fs.writeFileSync(victim, 'original', { mode: 0o600 });
   const result = await f.run();
-  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.code, 1, result.stderr);
   assert.match(result.stderr, /Invalid export file name/);
   assert.equal(fs.readFileSync(victim, 'utf8'), 'original');
   assert.equal(fs.existsSync(path.join(f.home, 'outside')), false);

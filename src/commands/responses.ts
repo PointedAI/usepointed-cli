@@ -1,7 +1,9 @@
 import { Command } from "commander";
+import { basename } from "node:path";
 import { createPrivateExportDirectory, exportFilePath, writePrivateExport as writeFile } from "../lib/private-files.js";
 import { apiRequest } from "../lib/api-client.js";
 import { printJson, printError, printSuccess, printWarning } from "../lib/output.js";
+import { encodeId } from "../lib/validation.js";
 
 interface ExportRound {
   roundNumber: number;
@@ -76,6 +78,20 @@ interface ResponseExportDownloadPayload {
   };
 }
 
+interface VideoExportOutcome {
+  roundNumber: number;
+  fileName: string;
+  status: "downloaded" | "preparing" | "unavailable" | "failed";
+  reason: string | null;
+}
+
+interface ResponseExportOutcome {
+  responseId: string;
+  status: "exported" | "partial" | "failed";
+  directory?: string;
+  warnings: string[];
+}
+
 interface CampaignExportPayload {
   campaign: {
     _id: string;
@@ -94,7 +110,7 @@ async function campaignExport(campaignId: string, includeTest: boolean) {
   let cursor: string | undefined;
   const seen = new Set<string>();
   do {
-    const result = await apiRequest<CampaignExportPayload>("GET", `/campaigns/${campaignId}/export`, undefined, {
+    const result = await apiRequest<CampaignExportPayload>("GET", `/campaigns/${encodeId(campaignId)}/export`, undefined, {
       pageSize: "1", ...(includeTest ? { includeTest: "true" } : {}), ...(cursor ? { cursor } : {}),
     });
     if (!result.data) return { ...result, data: null };
@@ -130,7 +146,7 @@ async function downloadVideoFile(outputPath: string, url: string): Promise<void>
 async function writeResponseBundle(
   outputDir: string,
   payload: ResponseExportDownloadPayload,
-): Promise<{ dir: string; warnings: string[] }> {
+): Promise<{ dir: string; warnings: string[]; failedDownloads: number }> {
   const { bundle, downloads } = payload;
   const contactSlug = slugify(bundle.contact.name || "unknown");
   const dateSlug = new Date(bundle.response.createdAt)
@@ -172,33 +188,55 @@ async function writeResponseBundle(
     );
   }
 
-  // Write manifest
-  await writeFile(
-    exportFilePath(responseDir, "manifest.json"),
-    JSON.stringify(bundle.manifest, null, 2),
-  );
-
   const warnings = [...bundle.manifest.processingWarnings];
+  const videoDownloads: VideoExportOutcome[] = [];
+  let failedDownloads = 0;
   for (const video of downloads.videos) {
     if (video.status !== "ready" || !video.url) {
-      warnings.push(
-        `Round ${video.roundNumber}: ${video.reason ?? "video download unavailable"}`,
-      );
+      const reason = video.reason ?? "video download unavailable";
+      warnings.push(`Round ${video.roundNumber}: ${reason}`);
+      videoDownloads.push({
+        roundNumber: video.roundNumber,
+        fileName: video.fileName,
+        status: video.status === "preparing" ? "preparing" : "unavailable",
+        reason,
+      });
       continue;
     }
 
     try {
+      // Keep the local outcome manifest available even if the API supplies a
+      // colliding video name (including on case-insensitive file systems).
+      if (video.fileName.toLowerCase() === "manifest.json") {
+        throw new Error("Video file name conflicts with manifest.json");
+      }
       await downloadVideoFile(exportFilePath(responseDir, video.fileName), video.url);
+      videoDownloads.push({
+        roundNumber: video.roundNumber,
+        fileName: video.fileName,
+        status: "downloaded",
+        reason: null,
+      });
     } catch (error) {
-      warnings.push(
-        `Round ${video.roundNumber}: ${
-          error instanceof Error ? error.message : "video download failed"
-        }`,
-      );
+      const reason = error instanceof Error ? error.message : "video download failed";
+      warnings.push(`Round ${video.roundNumber}: ${reason}`);
+      failedDownloads += 1;
+      videoDownloads.push({
+        roundNumber: video.roundNumber,
+        fileName: video.fileName,
+        status: "failed",
+        reason,
+      });
     }
   }
 
-  return { dir: responseDir, warnings: [...new Set(warnings)] };
+  const finalWarnings = [...new Set(warnings)];
+  await writeFile(
+    exportFilePath(responseDir, "manifest.json"),
+    JSON.stringify({ ...bundle.manifest, processingWarnings: finalWarnings, videoDownloads }, null, 2),
+  );
+
+  return { dir: responseDir, warnings: finalWarnings, failedDownloads };
 }
 
 export function createResponsesCommand(): Command {
@@ -229,21 +267,26 @@ export function createResponsesCommand(): Command {
         includeTest: boolean;
       }) => {
         try {
-          if (options.responseId) {
+          if (options.responseId !== undefined) {
             // Single response export
             const res = await apiRequest<ResponseExportDownloadPayload>(
               "GET",
-              `/campaigns/${options.campaignId}/responses/${options.responseId}/export`,
+              `/campaigns/${encodeId(options.campaignId)}/responses/${encodeId(options.responseId)}/export`,
             );
             if (!res.data) {
               printError("Response or campaign not found");
               process.exit(1);
             }
-            const { dir, warnings } = await writeResponseBundle(
+            const { dir, warnings, failedDownloads } = await writeResponseBundle(
               options.outputDir,
               res.data,
             );
-            printSuccess(`Exported response to ${dir}`);
+            if (failedDownloads > 0) {
+              printError(`Response export is incomplete: ${failedDownloads} video download(s) failed. Saved files to ${dir}`);
+              process.exitCode = 1;
+            } else {
+              printSuccess(`Exported response to ${dir}`);
+            }
             if (warnings.length > 0) {
               printWarning(
                 `Warnings:\n${warnings.map((w) => `  - ${w}`).join("\n")}`,
@@ -270,41 +313,53 @@ export function createResponsesCommand(): Command {
 
             let totalWarnings = 0;
             let exportedResponses = 0;
+            const outcomes: ResponseExportOutcome[] = [];
             for (const bundle of res.data.responses) {
               try {
                 const responseExport = await apiRequest<ResponseExportDownloadPayload>(
                   "GET",
-                  `/campaigns/${options.campaignId}/responses/${bundle.response._id}/export`,
+                  `/campaigns/${encodeId(options.campaignId)}/responses/${encodeId(bundle.response._id)}/export`,
                 );
                 if (!responseExport.data) {
-                  totalWarnings += 1;
-                  printWarning(
-                    `Warning: failed to load downloadable assets for response ${bundle.response._id}`,
-                  );
-                  continue;
+                  throw new Error("Failed to load downloadable assets");
                 }
-                const { warnings } = await writeResponseBundle(
+                const { dir, warnings, failedDownloads } = await writeResponseBundle(
                   campaignDir,
                   responseExport.data,
                 );
                 totalWarnings += warnings.length;
-                exportedResponses += 1;
+                if (failedDownloads === 0) exportedResponses += 1;
+                outcomes.push({
+                  responseId: bundle.response._id,
+                  status: failedDownloads > 0 ? "partial" : "exported",
+                  directory: basename(dir),
+                  warnings,
+                });
               } catch (error) {
+                const reason = error instanceof Error ? error.message : "request failed";
                 totalWarnings += 1;
+                outcomes.push({ responseId: bundle.response._id, status: "failed", warnings: [reason] });
                 printWarning(
-                  `Warning: failed to export response ${bundle.response._id}: ${
-                    error instanceof Error ? error.message : "request failed"
-                  }`,
+                  `Warning: failed to export response ${bundle.response._id}: ${reason}`,
                 );
               }
             }
 
-            printSuccess(
-              `Exported ${exportedResponses} of ${res.data.totalResponses} response(s) to ${campaignDir}`,
+            const failedResponses = outcomes.filter(outcome => outcome.status !== "exported").length;
+            await writeFile(
+              exportFilePath(campaignDir, "manifest.json"),
+              JSON.stringify({ totalResponses: res.data.totalResponses, exportedResponses, failedResponses, responses: outcomes }, null, 2),
             );
+            const summary = `Exported ${exportedResponses} of ${res.data.totalResponses} response(s) to ${campaignDir}`;
+            if (failedResponses > 0) {
+              printError(`${summary}. ${failedResponses} response export(s) incomplete; completed files were preserved.`);
+              process.exitCode = 1;
+            } else {
+              printSuccess(summary);
+            }
             if (totalWarnings > 0) {
               printWarning(
-                `${totalWarnings} processing warning(s) across responses. Check individual manifest.json files for details.`,
+                `${totalWarnings} processing warning(s) across responses. Check campaign and individual manifest.json files for details.`,
               );
             }
           }

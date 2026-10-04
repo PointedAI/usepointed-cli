@@ -40,6 +40,8 @@ pointed story-templates enroll <templateId> \
   --contact-emails jane@example.com,john@example.com
 ```
 
+Omitting both contact selectors includes all contacts on the account. Explicitly empty selectors, including empty shell variables, are rejected. Supply either `--contact-ids` or `--contact-emails`, not both.
+
 ## Manage enrollment
 
 ```bash

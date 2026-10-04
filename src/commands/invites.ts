@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { readFile } from "node:fs/promises";
 import { apiRequest } from "../lib/api-client.js";
 import { printJson, printError } from "../lib/output.js";
+import { encodeId } from "../lib/validation.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -61,7 +62,7 @@ async function runInviteEmailAction(
 
   const res = await apiRequest<InviteEmailResult>(
     "POST",
-    `/invites/${id}/email/${action}`,
+    `/invites/${encodeId(id)}/email/${action}`,
     body,
   );
   printJson(res.data);
@@ -184,7 +185,7 @@ export function createInvitesCommand(): Command {
           const body = await buildRequestBody(options);
           const res = await apiRequest<InviteDeliveryIssueResult>(
             "POST",
-            `/invites/${id}/delivery-issue/clear`,
+            `/invites/${encodeId(id)}/delivery-issue/clear`,
             body,
           );
           printJson(res.data);

@@ -128,6 +128,12 @@ OAuth state uses an owned, private `~/.pointed` directory (0700) and regular JSO
 
 Response downloads create a fresh private directory for each export, with owner-only files. Repeated downloads preserve earlier exports. The selected output directory must be owned by you and not writable by other users. Exported filenames cannot escape that directory.
 
+## Automation results
+
+Contact batches and link generation print their complete results and exit with status 1 if any item fails. Response downloads also exit with status 1 when a response or ready video cannot be exported, while preserving completed files. Export manifests record the final download outcomes; media still preparing or unavailable remains a warning.
+
+Explicitly empty contact selectors are rejected. Omit both selectors only when you intend to include all account contacts. Contract values accept finite nonnegative numbers without thousands separators; maximum rounds must be a positive integer.
+
 ## Documentation
 
 Mintlify docs live in this repository under `docs/`.

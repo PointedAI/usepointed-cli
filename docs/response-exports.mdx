@@ -31,7 +31,7 @@ pointed responses download \
 Single response:
 
 ```text
-<output-dir>/response-<contact-slug>-<date>/
+<output-dir>/response-<contact-slug>-<date>-<response-id>-<unique-suffix>/
   response.json
   round-1-transcript.txt
   round-2-transcript.txt
@@ -45,9 +45,10 @@ Single response:
 Full campaign:
 
 ```text
-<output-dir>/campaign-<title-slug>/
+<output-dir>/campaign-<title-slug>-<unique-suffix>/
   campaign.json
-  response-<contact-slug>-<date>/
+  manifest.json
+  response-<contact-slug>-<date>-<response-id>-<unique-suffix>/
     response.json
     round-*-transcript.txt
     response-<contact-slug>-<date>-round-*.mp4
@@ -56,4 +57,10 @@ Full campaign:
     manifest.json
 ```
 
-`manifest.json` records available files and warnings when optional media or generated summaries are missing.
+Every run creates a new private export directory and preserves previous exports.
+
+Each response's `manifest.json` includes final `processingWarnings` and a `videoDownloads` entry for each asset, with its filename, download status, and any failure reason. These reflect the download attempt, including network and file errors, rather than only the API's initial processing state.
+
+Campaign exports also write a top-level `manifest.json`. It records every requested response as `exported`, `partial`, or `failed`, with its output directory when available and any warnings. `exportedResponses` counts fully exported responses; `failedResponses` includes partial exports.
+
+The command exits with status 1 when a response cannot be exported or a ready video fails to download. Successfully written files are preserved, and campaign downloads continue attempting the remaining responses. Media that is still preparing or unavailable is recorded as a warning and does not alone make the command fail.

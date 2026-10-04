@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { apiRequest } from "../lib/api-client.js";
 import { printJson, printError } from "../lib/output.js";
+import { encodeId, parseContractValue } from "../lib/validation.js";
 
 interface Account {
   _id: string;
@@ -34,7 +35,7 @@ export function createAccountsCommand(): Command {
     .argument("<id>", "Account ID")
     .action(async (id: string) => {
       try {
-        const res = await apiRequest<Account>("GET", `/accounts/${id}`);
+        const res = await apiRequest<Account>("GET", `/accounts/${encodeId(id)}`);
         printJson(res.data);
       } catch (error) {
         printError(error instanceof Error ? error.message : "Request failed");
@@ -47,7 +48,7 @@ export function createAccountsCommand(): Command {
     .description("Create a new account")
     .requiredOption("--name <name>", "Account name")
     .option("--industry <industry>", "Industry")
-    .option("--contract-value <value>", "Contract value", parseFloat)
+    .option("--contract-value <value>", "Contract value", parseContractValue)
     .option("--notes <notes>", "Notes")
     .action(
       async (options: {
@@ -79,7 +80,7 @@ export function createAccountsCommand(): Command {
     .argument("<id>", "Account ID")
     .option("--name <name>", "Account name")
     .option("--industry <industry>", "Industry")
-    .option("--contract-value <value>", "Contract value", parseFloat)
+    .option("--contract-value <value>", "Contract value", parseContractValue)
     .option("--notes <notes>", "Notes")
     .action(
       async (
@@ -92,7 +93,7 @@ export function createAccountsCommand(): Command {
         },
       ) => {
         try {
-          const res = await apiRequest<Account>("PATCH", `/accounts/${id}`, {
+          const res = await apiRequest<Account>("PATCH", `/accounts/${encodeId(id)}`, {
             name: options.name,
             industry: options.industry,
             contractValue: options.contractValue,
