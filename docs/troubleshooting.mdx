@@ -1,7 +1,19 @@
 ---
 title: Troubleshooting
-description: Fix common Pointed CLI setup and authentication issues.
+description: Fix Pointed CLI setup issues and troubleshoot enabled ChatGPT or Codex connections.
 ---
+
+## ChatGPT and Codex connections
+
+These steps apply when a Pointed workspace integration has been enabled for you. The public [documentation MCP server](/docs/ai-tools) only searches these guides; it does not connect to your workspace.
+
+- Connect through ChatGPT or Codex's OAuth connection flow. A hosted Pointed connection does not require installing the CLI or pasting an API key, token, password, or client secret into chat.
+- Check the workspace reported by the connection. If access is denied or the workspace is wrong, open [Pointed](https://app.usepointed.ai/sign-in), confirm your account and selected workspace, then reconnect through the host.
+- Interview evidence requires separate permission and may be disabled for a connection. Use the returned Pointed links to review results when access is unavailable.
+- Saving a campaign draft does not send invitations, place calls, or start interviews. Review contacts, consent, and interview settings in Pointed before launching.
+- If saving an account or draft times out, check Pointed before retrying. Ask the plugin to retry the same operation with the same request key; a new key can create a duplicate. The plugin manages that key for you.
+
+For help, [contact Pointed](https://usepointed.ai/contact?reason=general) with the host you used, the workflow, and the safe error message. Do not include credentials, customer details, transcripts, or private workspace links.
 
 ## Check auth
 
