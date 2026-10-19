@@ -5,6 +5,8 @@ description: Fix common Pointed CLI setup and authentication issues.
 
 ## Check auth
 
+Confirm you can sign in to [Pointed](https://app.usepointed.ai/sign-in) with the same account. If you only have waitlist access, [contact Pointed](https://usepointed.ai/contact?reason=general) before trying workspace commands.
+
 ```bash
 pointed auth whoami
 ```
@@ -15,12 +17,37 @@ If you are not authenticated:
 pointed auth login
 ```
 
-Or use an API key:
+For automation, use an existing authorized API key as described in [Authentication](/docs/authentication#api-key). To check whether your shell is using a key without printing it:
 
 ```bash
-export POINTED_API_KEY=your_api_key
+test -n "$POINTED_API_KEY" && echo "POINTED_API_KEY is set"
+```
+
+An API key overrides browser credentials. To return to browser login:
+
+```bash
+unset POINTED_API_KEY
+pointed auth login
 pointed auth whoami
 ```
+
+## Browser login does not finish
+
+Keep the CLI running while you sign in. If the browser did not open, visit the URL printed in the terminal on the same computer. The callback uses `127.0.0.1:3100`; another process on port 3100 or a browser running on a different machine can prevent it from reaching the CLI.
+
+If the login attempt times out, start `pointed auth login` again. If a stored token expires, try `pointed auth refresh`, then `pointed auth whoami`. Do not share the authorization URL or token values in a support request.
+
+## Local file permission errors
+
+Use macOS or Linux. Native Windows ACL validation is not implemented.
+
+Inspect the affected path first. The CLI expects `~/.pointed` to be owned by your user with mode `0700`; its JSON files must be regular files owned by your user with mode `0600`. It rejects symlinks, hard links, and paths owned by another user. Avoid running the CLI with `sudo`.
+
+Correct permissions only after confirming that the path is your own directory or regular file. Preserve existing configuration and exports; do not delete the directory as a generic fix. If ownership is wrong or a link is involved, ask your administrator or [Pointed support](https://usepointed.ai/contact?reason=general) for help. Export directories must also be owned by you and not writable by other users.
+
+## A batch or export reports failure
+
+Read the complete output before retrying. Contact batches and link generation can succeed for some items and still exit with status 1 when others fail. Response exports preserve successful files and write [manifests](/docs/response-exports) with final outcomes. Retry only what still needs attention.
 
 ## Check environment
 
@@ -34,6 +61,8 @@ If `POINTED_API_URL` is set, it overrides the saved config.
 ## Use request IDs
 
 CLI API responses include `meta.requestId`. Include that request ID when reporting a failed command.
+
+For help, use [Pointed support](https://usepointed.ai/contact?reason=general) or [CLI issues](https://github.com/PointedAI/usepointed-cli/issues). Include the CLI version, operating system, command name, error, and request ID when available. Remove tokens, customer details, transcripts, and private links before posting a public issue.
 
 ## Inspect commands
 

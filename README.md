@@ -4,16 +4,20 @@ Pointed CLI manages accounts, contacts, campaigns, story templates, survey links
 
 ## Install
 
-Once published to npm:
+Install the public npm package:
 
 ```bash
 npm install -g @pointed/cli
 ```
 
+Use macOS or Linux and Node.js 20 or newer. Node.js 22 is recommended for repository development. Native Windows is not currently supported because the CLI's private-file checks require POSIX ownership and permissions.
+
+You need an existing Pointed account with workspace access. New users can [request access](https://usepointed.ai/contact?reason=general); installing the CLI does not create an account. Start with the [quickstart](https://pointedai.mintlify.site/docs/quickstart) for a complete first run.
+
 During development from this repository:
 
 ```bash
-npm install
+npm ci
 npm run build
 npm link
 ```
@@ -39,12 +43,14 @@ pointed auth login
 pointed auth whoami
 ```
 
-For automation, set a Pointed-compatible Clerk API key:
+Complete login in a browser on the same computer; the CLI listens for a callback on `127.0.0.1:3100`. For automation, set an existing Pointed-compatible Clerk API key authorized for your workspace:
 
 ```bash
 export POINTED_API_KEY=your_api_key
 pointed auth whoami
 ```
+
+The CLI does not issue API keys. [Contact Pointed](https://usepointed.ai/contact?reason=general) to confirm provisioning if you need one. API keys take precedence over stored browser credentials; see [Authentication](https://pointedai.mintlify.site/docs/authentication) for refresh, logout, and configuration details.
 
 ## Common Commands
 
@@ -136,12 +142,22 @@ Explicitly empty contact selectors are rejected. Omit both selectors only when y
 
 ## Documentation
 
-Mintlify docs live in this repository under `docs/`.
+Read the live [Pointed CLI documentation](https://pointedai.mintlify.site/docs/quickstart). The source lives in this repository under `docs/`, with navigation and branding in `docs.json`. Mintlify deploys the `main` branch automatically; pull requests receive a documentation preview.
+
+The public [documentation MCP server](https://pointedai.mintlify.site/mcp) searches the guides and accepts documentation feedback. It cannot access or change your Pointed workspace. See [AI tools and documentation](https://pointedai.mintlify.site/docs/ai-tools) for the distinction between documentation lookup and using the CLI from an agent.
+
+Preview and validate documentation changes locally with the [Mintlify CLI](https://www.mintlify.com/docs/cli/commands):
+
+```bash
+npx mint dev
+npx mint validate
+npx mint broken-links --check-anchors
+```
 
 ## Development
 
 ```bash
-npm install
+npm ci
 npm run lint
 npm test
 npm run build

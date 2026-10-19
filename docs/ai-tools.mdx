@@ -1,0 +1,30 @@
+---
+title: AI tools and documentation
+description: Give your assistant access to Pointed CLI documentation and understand which tools can change workspace data.
+---
+
+## Read the documentation with an assistant
+
+The public documentation has a [page index](https://pointedai.mintlify.site/llms.txt) and [complete text](https://pointedai.mintlify.site/llms-full.txt) for tools that read Markdown.
+
+Mintlify also hosts a documentation MCP server:
+
+```text
+https://pointedai.mintlify.site/mcp
+```
+
+Use that URL in an MCP client that supports remote HTTP servers. It does not require your Pointed credentials.
+
+The documentation server searches and reads the published CLI guides. It also offers a tool for submitting documentation feedback. It has no access to your private Pointed workspace, customer contacts, interviews, or response exports, and cannot send invitations or change records.
+
+## Use the CLI from an agent
+
+An agent with terminal access can use the installed CLI after you complete [authentication](/docs/authentication). Start with `pointed auth whoami`, `pointed --help`, and read commands such as `pointed accounts list` to confirm the intended account and operation.
+
+Review customer records and recipient selections before a write. Creating contacts or campaigns, enrolling accounts, and generating links change workspace data. Sending or reminding an invitation contacts a customer and should follow your explicit approval.
+
+For batch operations, inspect the JSON output and exit status. A nonzero exit can include successful items alongside failures; [response export manifests](/docs/response-exports) preserve each outcome. Check what succeeded before retrying.
+
+## Pointed in ChatGPT
+
+Adding this documentation MCP server to an assistant provides documentation lookup only. It does not install a Pointed app that operates your workspace in ChatGPT. Use the [CLI command reference](/docs/commands) for the operations available through the CLI, or [contact Pointed](https://usepointed.ai/contact?reason=general) about integration availability.

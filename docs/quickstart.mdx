@@ -1,26 +1,45 @@
 ---
 title: Quickstart
-description: Install the Pointed CLI, authenticate, and create your first survey links.
+description: Sign in to your Pointed workspace, prepare customer interview links, and collect evidence from your terminal.
 ---
 
-The Pointed CLI lets you manage customer story collection from the terminal.
+Pointed helps B2B teams collect customer evidence. Use the CLI to manage accounts and contacts, prepare interview campaigns, and export responses for analysis.
+
+## Before you start
+
+You need an existing Pointed account with access to your workspace, macOS or Linux, and Node.js 20 or newer. Node.js 22 is recommended for development.
+
+<Note>
+  Installing the CLI does not create a Pointed account. New users can [request access](https://usepointed.ai/contact?reason=general). If the Pointed site directs you to the waitlist, wait for access before continuing. Existing users can [sign in to Pointed](https://app.usepointed.ai/sign-in).
+</Note>
 
 ## Install
 
 ```bash
 npm install -g @pointed/cli
+pointed --version
 ```
 
 ## Log in
 
 ```bash
 pointed auth login
-pointed auth whoami
 ```
 
-The CLI uses `https://app.usepointed.ai` by default.
+Complete sign-in in the browser on the same computer, then return to your terminal and verify your account:
+
+```bash
+pointed auth whoami
+pointed accounts list
+```
+
+The CLI uses `https://app.usepointed.ai` by default. See [Authentication](/docs/authentication) if sign-in fails or you need automation credentials.
 
 ## Create an account and contact
+
+Here, an account is a customer organization in your Pointed workspace. It is separate from your Pointed sign-in. The following commands create records. You can reuse an existing customer account from `pointed accounts list`.
+
+Replace placeholders such as `<accountId>` with the IDs returned by your commands, without the angle brackets. Use contact details you are authorized to add.
 
 ```bash
 pointed accounts create --name "Acme Corp" --industry "Technology"
@@ -45,7 +64,13 @@ pointed campaigns create \
 ## Generate links
 
 ```bash
-pointed links generate --campaign-id <campaignId>
+pointed links generate --campaign-id <campaignId> --contact-ids <contactId>
 ```
 
-Omitting contact selectors generates links for all contacts on the campaign account.
+This prepares a link for the selected contact. Omitting both contact selectors includes every contact on the campaign account. Preparing links does not send invitation email.
+
+## Review and share
+
+Review the generated link before sharing it. To use Pointed invitation email, first [preview the invitation](/docs/commands#invite-email), then send it when you are ready. Sending and reminding are separate commands that contact the customer.
+
+After a customer responds, [list and export responses](/docs/response-exports). For repeatable collection across accounts, use [story templates](/docs/story-templates).
