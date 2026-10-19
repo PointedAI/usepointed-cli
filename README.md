@@ -142,7 +142,7 @@ Explicitly empty contact selectors are rejected. Omit both selectors only when y
 
 ## Documentation
 
-Read the live [Pointed CLI documentation](https://pointedai.mintlify.site/docs/quickstart). The source lives in this repository under `docs/`, with navigation and branding in `docs.json`. Mintlify deploys the `main` branch automatically; pull requests receive a documentation preview.
+Read the live [Pointed CLI documentation](https://pointedai.mintlify.site/docs/quickstart). The source lives in this repository under `docs/`, with navigation and branding in `docs.json`. Mintlify deploys the `main` branch automatically. Preview changes locally before opening a pull request, and check the Mintlify deployment result on GitHub after changes merge.
 
 The public [documentation MCP server](https://pointedai.mintlify.site/mcp) searches the guides and accepts documentation feedback. It cannot access or change your Pointed workspace. See [AI tools and documentation](https://pointedai.mintlify.site/docs/ai-tools) for the distinction between documentation lookup and using the CLI from an agent.
 
