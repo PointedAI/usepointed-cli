@@ -1,18 +1,24 @@
 ---
 title: Authentication
-description: Authenticate with Pointed using OAuth or an API key.
+description: Connect an existing Pointed account with browser login, or use an existing API key for automation.
 ---
 
 ## Browser login
 
-Use browser-based OAuth for interactive usage.
+Use browser login for interactive usage. First confirm you can [sign in to Pointed](https://app.usepointed.ai/sign-in) and access your workspace. If you are new to Pointed, [request access](https://usepointed.ai/contact?reason=general); joining a waitlist alone does not provide workspace access.
 
 ```bash
 pointed auth login
-pointed auth whoami
 ```
 
-OAuth credentials are stored in:
+1. Leave the command running while the browser opens.
+2. Sign in with your Pointed account and complete the authorization prompt.
+3. Return to the terminal and wait for `Logged in successfully.`
+4. Run `pointed auth whoami` to verify the authenticated account before creating or changing records.
+
+The browser must run on the same computer as the CLI. Login uses a temporary callback at `http://127.0.0.1:3100/callback`. If the browser does not open, copy the URL printed by the CLI into your browser. A remote SSH session or container needs a compatible local callback setup; use an existing API key for unattended automation.
+
+The CLI stores OAuth access and refresh tokens in a private local file:
 
 ```text
 ~/.pointed/credentials.json
@@ -20,14 +26,33 @@ OAuth credentials are stored in:
 
 ## API key
 
-Use an API key for automation and non-interactive shells.
+Use this option only if you already have a Pointed-compatible Clerk API key authorized for your workspace. If you need one, [contact Pointed](https://usepointed.ai/contact?reason=general) to confirm availability and provisioning. The CLI has no command to issue API keys.
+
+Store the key in your shell's secret management or your automation provider's secret store, then expose it as `POINTED_API_KEY`:
 
 ```bash
-export POINTED_API_KEY=your_api_key
+export POINTED_API_KEY="<your-existing-api-key>"
 pointed auth whoami
 ```
 
-The CLI checks `POINTED_API_KEY` before stored OAuth credentials.
+The CLI checks `POINTED_API_KEY` before stored OAuth credentials. Do not put keys in source files, screenshots, public issues, or chat messages. To switch back to browser credentials, run `unset POINTED_API_KEY` in that shell and verify with `pointed auth whoami`.
+
+## Refresh or sign out
+
+If an OAuth token expires, refresh it and check your account again:
+
+```bash
+pointed auth refresh
+pointed auth whoami
+```
+
+If refresh fails, run `pointed auth login` again.
+
+```bash
+pointed auth logout
+```
+
+Logout removes the locally stored OAuth credentials. It does not revoke an API key or unset `POINTED_API_KEY`. Remove the variable from your environment and secret store when you stop using it; contact Pointed if you need help revoking a key.
 
 ## Configuration
 
@@ -45,9 +70,13 @@ pointed config get apiBaseUrl
 pointed config set apiBaseUrl https://app.usepointed.ai
 ```
 
+The default API is `https://app.usepointed.ai`. Change the API or OAuth settings only when you are intentionally using another Pointed environment.
+
 Useful environment overrides:
 
 - `POINTED_API_URL`: override the API base URL
 - `POINTED_OUTPUT_FORMAT`: set `json` or `table`
 - `CLERK_FRONTEND_API_URL`: override hosted OAuth discovery
 - `CLERK_OAUTH_CLIENT_ID`: override the OAuth client ID for development
+
+For browser callback, expired-token, or permission problems, see [Troubleshooting](/docs/troubleshooting). Pointed's [privacy policy](https://usepointed.ai/privacy) explains how the service handles data.

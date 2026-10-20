@@ -1,23 +1,38 @@
 ---
 title: Changelog
-description: Release notes for Pointed CLI.
+description: Published Pointed CLI releases and the source changes included in them.
 ---
 
-## 0.2.0
+## 0.2.0 — October 4, 2026
 
-Feature parity release.
+The first public npm release of [`@pointed/cli`](https://www.npmjs.com/package/@pointed/cli), including the earlier feature work and the October security and reliability fixes.
 
-- `accounts update` command for editing account name, industry, contract value, and notes
-- `campaigns update` command for editing title, description, context, initial question, and max rounds
-- `smart-intake preview` and `smart-intake commit` commands for AI-powered bulk account and contact import
-- Inline spinner feedback during long-running operations
+### Customer collection workflows
 
-## 0.1.0
+- Accounts, contacts, campaigns, survey links, and story template enrollment
+- Account and campaign updates
+- Invitation preview, test, send, reminder, and delivery issue clearing
+- Smart intake preview and commit for account and contact imports
+- Response data, transcript, media, summary, and manifest exports
+- Browser OAuth login, refresh, logout, and existing API key support
 
-Initial public CLI package preparation.
+### October fixes
 
-- Accounts, contacts, campaigns, and link generation
-- Story template creation, enrollment, account state, and legacy import
-- Invite email preview, test, send, remind, and delivery issue clearing
-- Response listing and export download
-- OAuth and API key authentication
+- Private local credential/configuration files and export directories, with ownership and permission checks
+- OAuth callback validation and terminal output escaping
+- Opaque identifier handling and rejection of explicitly empty contact selectors
+- Strict numeric validation and removal of unsupported contact department fields
+- Complete batch results and failure exit status for partial operations
+- Bounded campaign export pagination and manifests that report final download outcomes
+
+Source changes: [local storage and OAuth hardening](https://github.com/PointedAI/usepointed-cli/pull/3) and [request targeting and operation reporting](https://github.com/PointedAI/usepointed-cli/pull/4).
+
+## Development history before npm publication
+
+### May 23, 2026
+
+The source version moved to 0.2.0 with account/campaign updates, smart intake, and inline spinner feedback. These changes were published to npm as part of the October 4 release.
+
+### April 26, 2026
+
+Initial 0.1.0 source preparation included the core collection commands, story templates, invitation email, response exports, and authentication. Version 0.1.0 was not published to the public npm registry.

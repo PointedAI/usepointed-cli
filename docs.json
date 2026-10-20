@@ -2,8 +2,46 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Pointed CLI",
+  "description": "Collect customer evidence with Pointed: manage accounts, prepare interview links, and export responses from your terminal.",
   "colors": {
-    "primary": "#2f75bb"
+    "primary": "#2E6BA9",
+    "light": "#7CB6ED",
+    "dark": "#2E6BA9"
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "/docs/quickstart"
+  },
+  "favicon": "/logo/icon.svg",
+  "navbar": {
+    "links": [
+      { "label": "Pointed", "href": "https://usepointed.ai" },
+      { "label": "Support", "href": "https://usepointed.ai/contact?reason=general" }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Open Pointed",
+      "href": "https://app.usepointed.ai/sign-in"
+    }
+  },
+  "footer": {
+    "links": [
+      {
+        "header": "Pointed",
+        "items": [
+          { "label": "Request access", "href": "https://usepointed.ai/contact?reason=general" },
+          { "label": "CLI source", "href": "https://github.com/PointedAI/usepointed-cli" }
+        ]
+      },
+      {
+        "header": "Legal",
+        "items": [
+          { "label": "Privacy policy", "href": "https://usepointed.ai/privacy" },
+          { "label": "Terms of service", "href": "https://usepointed.ai/terms" }
+        ]
+      }
+    ]
   },
   "navigation": {
     "groups": [
@@ -12,7 +50,8 @@
         "pages": [
           "docs/quickstart",
           "docs/installation",
-          "docs/authentication"
+          "docs/authentication",
+          "docs/ai-tools"
         ]
       },
       {

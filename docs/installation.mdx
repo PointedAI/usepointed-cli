@@ -5,17 +5,32 @@ description: Install Pointed CLI from npm or run it from source.
 
 ## Install from npm
 
+The public npm package is [`@pointed/cli`](https://www.npmjs.com/package/@pointed/cli).
+
 ```bash
 npm install -g @pointed/cli
 pointed --help
 ```
+
+Update an existing installation with the same `npm install -g @pointed/cli` command.
+
+## Requirements
+
+- macOS or Linux with a filesystem that supports POSIX ownership and permissions
+- Node.js 20 or newer; use Node.js 22 when developing or validating this repository
+- An existing Pointed account with workspace access; [request access](https://usepointed.ai/contact?reason=general) if you do not have one
+- A browser on the same computer for `pointed auth login`, or an existing Pointed-compatible API key for automation
+
+Native Windows is not currently supported. The CLI checks local file ownership and permissions before using credentials, configuration, and export directories; Windows ACL validation is not implemented.
+
+Installing the package does not grant workspace access or create an API key. Continue with [Authentication](/docs/authentication) after installation.
 
 ## Run from source
 
 ```bash
 git clone https://github.com/PointedAI/usepointed-cli.git
 cd usepointed-cli
-npm install
+npm ci
 npm run build
 npm link
 pointed --help
@@ -27,8 +42,8 @@ You can also run the built file directly:
 node dist/index.js --help
 ```
 
-## Requirements
+## Local files
 
-- Node.js 20 or newer
-- A Pointed account
-- Browser access for `pointed auth login`, unless you use `POINTED_API_KEY`
+The CLI stores configuration and OAuth credentials in `~/.pointed`. It requires that directory to be owned by your user with mode `0700`, and its JSON files to be regular, owner-only files with mode `0600`. It refuses unsafe permissions, symbolic links, and hard links.
+
+Response exports use private directories and files too. See [Troubleshooting](/docs/troubleshooting#local-file-permission-errors) for recovery guidance.
