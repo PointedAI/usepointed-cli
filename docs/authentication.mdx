@@ -18,7 +18,8 @@ pointed auth login
 
 Choose the workspace you intend to use in the authorization prompt. Login requests
 permissions to read and change workspace records, export interview evidence, and
-manage setup. These permissions do not override your workspace role. The token is
+manage setup. It also requests offline access so `pointed auth refresh` can renew
+the connection. These permissions do not override your workspace role. The token is
 bound to the selected workspace and the configured Pointed API.
 
 After the OAuth authorization update, sign in again to replace older identity-only

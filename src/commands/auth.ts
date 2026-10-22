@@ -33,7 +33,7 @@ const REDIRECT_URI = `http://127.0.0.1:${CALLBACK_PORT}/callback`;
 /**
  * Scopes to request from Clerk's OAuth server.
  */
-const OAUTH_SCOPES = "openid profile email user:org:read pointed:read pointed:write pointed:evidence pointed:setup";
+const OAUTH_SCOPES = "openid profile email offline_access user:org:read pointed:read pointed:write pointed:evidence pointed:setup";
 
 function oauthResource(): string {
   return new URL("/api/cli", getApiBaseUrl()).href;

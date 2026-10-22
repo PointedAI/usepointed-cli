@@ -28,7 +28,7 @@ test('login and refresh carry the same resource and explicit consent through the
       authorization=new URL(raw);
       assert.equal(authorization.searchParams.get('resource'),'https://api.example/api/cli');
       const scopes=authorization.searchParams.get('scope').split(' ');
-      for(const scope of ['user:org:read','pointed:read','pointed:write','pointed:evidence','pointed:setup']) assert.ok(scopes.includes(scope));
+      for(const scope of ['offline_access','user:org:read','pointed:read','pointed:write','pointed:evidence','pointed:setup']) assert.ok(scopes.includes(scope));
       assert.equal(scopes.includes('pointed:admin'),adminExpected);
       assert.equal(authorization.searchParams.get('code_challenge_method'),'S256');
       const callback=new URL(authorization.searchParams.get('redirect_uri'));
