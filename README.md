@@ -43,6 +43,11 @@ pointed auth login
 pointed auth whoami
 ```
 
+Select your workspace and approve the requested Pointed permissions. After the
+OAuth authorization update, run `pointed auth login` again; existing tokens do not
+gain the new permissions through refresh. Platform administrators can request
+additional consent with `pointed auth login --admin`.
+
 Complete login in a browser on the same computer; the CLI listens for a callback on `127.0.0.1:3100`. For automation, set an existing Pointed-compatible Clerk API key authorized for your workspace:
 
 ```bash

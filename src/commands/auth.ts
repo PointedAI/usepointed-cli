@@ -33,7 +33,11 @@ const REDIRECT_URI = `http://127.0.0.1:${CALLBACK_PORT}/callback`;
 /**
  * Scopes to request from Clerk's OAuth server.
  */
-const OAUTH_SCOPES = "openid profile email public_metadata";
+const OAUTH_SCOPES = "openid profile email offline_access user:org:read pointed:read pointed:write pointed:evidence pointed:setup";
+
+function oauthResource(): string {
+  return new URL("/api/cli", getApiBaseUrl()).href;
+}
 
 interface TokenResponse {
   access_token: string;
@@ -74,6 +78,7 @@ async function exchangeCodeForTokens(
     redirect_uri: REDIRECT_URI,
     client_id: CLERK_OAUTH_CLIENT_ID,
     code_verifier: codeVerifier,
+    resource: oauthResource(),
   });
 
   const response = await fetch(tokenEndpoint, {
@@ -90,7 +95,7 @@ async function exchangeCodeForTokens(
   return (await response.json()) as TokenResponse;
 }
 
-export function createAuthCommand(): Command {
+export function createAuthCommand(openBrowser: typeof open = open): Command {
   const auth = new Command("auth").description(
     "Authenticate with the Pointed API",
   );
@@ -98,12 +103,13 @@ export function createAuthCommand(): Command {
   auth
     .command("login")
     .description("Log in via browser (OAuth + PKCE)")
+    .option("--admin", "Request platform administrator permissions")
     .option(
       "--clerk-domain <url>",
       "Clerk Frontend API URL",
       process.env["CLERK_FRONTEND_API_URL"] ?? DEFAULT_CLERK_FRONTEND_API_URL,
     )
-    .action(async (options: { clerkDomain?: string }) => {
+    .action(async (options: { clerkDomain?: string; admin?: boolean }) => {
       const clerkDomain = options.clerkDomain;
       let closeCallbackServer: (() => void) | undefined;
       if (!clerkDomain) {
@@ -138,14 +144,15 @@ export function createAuthCommand(): Command {
         authUrl.searchParams.set("response_type", "code");
         authUrl.searchParams.set("client_id", CLERK_OAUTH_CLIENT_ID);
         authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
-        authUrl.searchParams.set("scope", OAUTH_SCOPES);
+        authUrl.searchParams.set("scope", options.admin ? `${OAUTH_SCOPES} pointed:admin` : OAUTH_SCOPES);
+        authUrl.searchParams.set("resource", oauthResource());
         authUrl.searchParams.set("state", state);
         authUrl.searchParams.set("code_challenge", codeChallenge);
         authUrl.searchParams.set("code_challenge_method", "S256");
 
         // 5. Open browser
         console.log("Opening browser for authentication...");
-        await open(authUrl.toString());
+        await openBrowser(authUrl.toString());
         console.log(
           "Waiting for authentication (press Ctrl+C to cancel)...\n",
         );
@@ -279,6 +286,7 @@ export function createAuthCommand(): Command {
         const body = new URLSearchParams({
           grant_type: "refresh_token",
           refresh_token: creds.refreshToken,
+          resource: oauthResource(),
           client_id: CLERK_OAUTH_CLIENT_ID,
         });
 

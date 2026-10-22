@@ -16,6 +16,17 @@ pointed auth login
 3. Return to the terminal and wait for `Logged in successfully.`
 4. Run `pointed auth whoami` to verify the authenticated account before creating or changing records.
 
+Choose the workspace you intend to use in the authorization prompt. Login requests
+permissions to read and change workspace records, export interview evidence, and
+manage setup. It also requests offline access so `pointed auth refresh` can renew
+the connection. These permissions do not override your workspace role. The token is
+bound to the selected workspace and the configured Pointed API.
+
+After the OAuth authorization update, sign in again to replace older identity-only
+tokens. Refreshing an old token does not add the new permissions. Platform
+administrators can request additional admin consent with `pointed auth login --admin`;
+the server still checks current administrator authority.
+
 The browser must run on the same computer as the CLI. Login uses a temporary callback at `http://127.0.0.1:3100/callback`. If the browser does not open, copy the URL printed by the CLI into your browser. A remote SSH session or container needs a compatible local callback setup; use an existing API key for unattended automation.
 
 The CLI stores OAuth access and refresh tokens in a private local file:
