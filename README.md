@@ -171,3 +171,34 @@ npm pack --dry-run
 ```
 
 The npm package publishes only the built `dist/` output plus `README.md` and `LICENSE`.
+
+## ElevenLabs interview settings
+
+Configure reusable Demo Mode links or interview templates without starting a call:
+
+```bash
+pointed interviews settings list --kind demo
+pointed interviews settings list --kind story_template
+pointed interviews settings get <targetId> --kind demo > interview-settings.json
+pointed interviews settings provider --kind demo --id <targetId> --channel browser_audio
+pointed interviews settings set <targetId> --kind demo --file interview-settings.json
+```
+
+`settings get` exports `expectedRevision`, `openingQuestion`, `context`, `instructions`, and `elevenLabsSettingsJson`. Advanced JSON uses native ElevenLabs `conversation_config` names. `{}` uses Pointed's standard connection defaults; inspect effective model, voice, turn and other tuning values with `settings provider` before changing them. Use `--channel phone` to inspect phone defaults. Provider credentials, tools, consent and security remain managed by Pointed.
+
+Keep `expectedRevision` while editing. A conflict exits with status 1, prints the current revision as JSON, and leaves your file intact. Read the latest settings and reconcile your edits before another save. The CLI does not automatically retry conflicting writes. List results are paginated; continue with `--cursor` until `nextCursor` is null. `--limit` accepts 1–25.
+
+Saving requires a user-backed workspace writer with `pointed:write`. It may provision an isolated provider configuration, but does not send invitations or start calls or recordings. Settings affect future runs; existing invitations retain their frozen configuration.
+
+### Founder voice settings
+
+Platform administrators can inspect founder demos and configure their browser voice or phone channels after `pointed auth login --admin`:
+
+```bash
+pointed admin demos list
+pointed admin demos get <definitionId>
+pointed admin demos voice-settings get <definitionId> --channel phone > phone-settings.json
+pointed admin demos voice-settings set <definitionId> --file phone-settings.json
+```
+
+Use `--channel browser_audio` for browser voice. The editable envelope contains `channel`, `expectedRevision`, and `configuration`, including `elevenLabsSettingsJson`. Blank connection identifiers resolve to the standard Pointed connection on the server. The server rechecks current platform-admin authority before committing a save. These commands configure voice channels independently of the founder text-interview engine and do not initiate a call.
