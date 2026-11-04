@@ -15,11 +15,12 @@ async function fixture(t) {
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const requests = [];
   let result = {};
+  let status = 200;
   const server = http.createServer(async (request, response) => {
     let raw = '';
     for await (const chunk of request) raw += chunk;
     requests.push({ method: request.method, url: request.url, body: raw ? JSON.parse(raw) : undefined });
-    response.writeHead(200, { 'content-type': 'application/json' });
+    response.writeHead(status, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ data: result }));
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -27,7 +28,7 @@ async function fixture(t) {
   return {
     home,
     requests,
-    respond(value) { result = value; },
+    respond(value, statusCode = 200) { result = value; status = statusCode; },
     run(args) {
       return new Promise((resolve, reject) => {
         // An isolated home and explicit dummy credentials prevent use of local auth state.
@@ -67,6 +68,10 @@ async function rejectsBeforeRequest(f, args) {
 }
 
 const pathCommands = [
+  id => ['interviews', 'settings', 'get', id],
+  id => ['interviews', 'settings', 'provider', '--id', id, '--channel', 'phone'],
+  id => ['admin', 'demos', 'get', id],
+  id => ['admin', 'demos', 'voice-settings', 'get', id, '--channel', 'browser_audio'],
   id => ['accounts', 'get', id],
   id => ['accounts', 'update', id, '--name', 'Account'],
   id => ['contacts', 'get', id],
@@ -296,5 +301,92 @@ test('unsupported department options are rejected instead of reporting a success
     const help = await f.run([...command.slice(0, 2), '--help']);
     assert.equal(help.code, 0, help.stderr);
     assert.doesNotMatch(help.stdout, /--department/);
+  }
+});
+
+test('interview settings round-trip the revision and exact native JSON without extra metadata', async t => {
+  const f = await fixture(t);
+  const native = JSON.stringify({ agent: { prompt: { llm: 'gpt-4o-mini', temperature: 0.2 } }, turn: { turn_eagerness: 'patient' } }, null, 2);
+  const settings = { revision: 7, openingQuestion: 'What changed?', context: 'Product context', instructions: 'Let people finish.', elevenLabsSettingsJson: native,
+    target: { kind: 'story_template', id: 'template-1' }, actorId: 'private-internal-actor', url: 'https://app.usepointed.ai/dashboard' };
+  f.respond(settings);
+  const fetched = await f.run(['interviews', 'settings', 'get', 'template-1', '--kind', 'story_template']);
+  assert.equal(fetched.code, 0, fetched.stderr);
+  const editable = JSON.parse(fetched.stdout);
+  assert.deepEqual(editable, { expectedRevision: 7, openingQuestion: settings.openingQuestion, context: settings.context, instructions: settings.instructions, elevenLabsSettingsJson: native });
+  assert.equal(f.requests.at(-1).url, '/api/cli/v1/interview-settings/story_template/template-1');
+  const file = path.join(f.home, 'settings.json');
+  fs.writeFileSync(file, JSON.stringify(editable));
+  f.respond({ status: 'saved', revision: 8 });
+  const saved = await f.run(['interviews', 'settings', 'set', 'template-1', '--kind', 'story_template', '--file', file]);
+  assert.equal(saved.code, 0, saved.stderr);
+  assert.deepEqual(f.requests.at(-1), { method: 'PUT', url: '/api/cli/v1/interview-settings/story_template/template-1', body: editable });
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), editable);
+});
+
+test('interview list and provider reads retain explicit kind, pagination and channel', async t => {
+  const f = await fixture(t);
+  f.respond({ items: [], nextCursor: 'next&cursor' });
+  const listed = await f.run(['interviews', 'settings', 'list', '--kind', 'story_template', '--cursor', 'next&cursor', '--limit', '7']);
+  assert.equal(listed.code, 0, listed.stderr);
+  const url = new URL(f.requests.at(-1).url, 'https://example.com');
+  assert.equal(url.pathname, '/api/cli/v1/interview-settings');
+  assert.equal(url.searchParams.get('kind'), 'story_template');
+  assert.equal(url.searchParams.get('cursor'), 'next&cursor');
+  assert.equal(url.searchParams.get('limit'), '7');
+  const tuning = { settingsJson: '{"turn":{"turn_eagerness":"patient"}}' };
+  f.respond(tuning);
+  const provider = await f.run(['interviews', 'settings', 'provider', '--kind', 'demo', '--id', 'demo-1', '--channel', 'phone']);
+  assert.equal(provider.code, 0, provider.stderr);
+  assert.equal(f.requests.at(-1).url, '/api/cli/v1/interview-settings/demo/demo-1/provider?channel=phone');
+  assert.deepEqual(JSON.parse(provider.stdout), tuning);
+  for (const count of ['0', '26', '2.5', 'garbage']) await rejectsBeforeRequest(f, ['interviews', 'settings', 'list', '--limit', count]);
+});
+
+test('founder native voice settings use the admin endpoint without selecting an engine or starting a call', async t => {
+  const f = await fixture(t);
+  const settings = { channel: 'phone', expectedRevision: 3, configuration: { enabled: true, agentId: '', agentPhoneNumberId: '', voiceId: '', elevenLabsSettingsJson: '{}' } };
+  f.respond(settings);
+  const fetched = await f.run(['admin', 'demos', 'voice-settings', 'get', 'definition-1', '--channel', 'phone']);
+  assert.equal(fetched.code, 0, fetched.stderr);
+  assert.equal(f.requests.at(-1).url, '/api/cli/v1/admin/demos/definition-1/voice-settings?kind=founder&channel=phone');
+  const file = path.join(f.home, 'voice-settings.json');
+  fs.writeFileSync(file, fetched.stdout);
+  f.respond({ status: 'saved', revision: 4 });
+  const saved = await f.run(['admin', 'demos', 'voice-settings', 'set', 'definition-1', '--file', file]);
+  assert.equal(saved.code, 0, saved.stderr);
+  assert.deepEqual(f.requests.at(-1), { method: 'PUT', url: '/api/cli/v1/admin/demos/definition-1/voice-settings?kind=founder', body: settings });
+  assert.equal(f.requests.length, 2);
+});
+
+test('settings conflicts retain the current revision in JSON and never retry automatically', async t => {
+  const f = await fixture(t);
+  const ordinary = { expectedRevision: 1, openingQuestion: 'Question', context: '', instructions: '', elevenLabsSettingsJson: '{}' };
+  const native = { channel: 'browser_audio', expectedRevision: 1, configuration: { enabled: false } };
+  for (const [body, command] of [[ordinary, ['interviews', 'settings', 'set', 'demo-1']], [native, ['admin', 'demos', 'voice-settings', 'set', 'definition-1']]]) {
+    const file = path.join(f.home, 'conflict.json');
+    fs.writeFileSync(file, JSON.stringify(body));
+    f.respond({ status: 'conflict', revision: 9 }, 409);
+    const count = f.requests.length;
+    const result = await f.run([...command, '--file', file]);
+    assert.equal(result.code, 1);
+    assert.deepEqual(JSON.parse(result.stdout), { status: 'conflict', revision: 9 });
+    assert.match(result.stderr, /reconcile/);
+    assert.equal(f.requests.length, count + 1);
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), body);
+  }
+});
+
+test('malformed settings files fail before network access', async t => {
+  const f = await fixture(t);
+  const file = path.join(f.home, 'invalid-settings.json');
+  const ordinary = { expectedRevision: 0, openingQuestion: 'Question', context: '', instructions: '' };
+  const native = { channel: 'phone', expectedRevision: 0, configuration: {} };
+  for (const [command, invalid] of [
+    [['interviews', 'settings', 'set', 'demo-1'], [[], null, { ...ordinary, expectedRevision: -1 }, { ...ordinary, orgId: 'spoof' }, { ...ordinary, instructions: 5 }]],
+    [['admin', 'demos', 'voice-settings', 'set', 'definition-1'], [[], null, { ...native, expectedRevision: 1.5 }, { ...native, channel: 'realtime' }, { ...native, clerkUserId: 'spoof' }]],
+  ]) for (const body of invalid) {
+    fs.writeFileSync(file, JSON.stringify(body));
+    await rejectsBeforeRequest(f, [...command, '--file', file]);
   }
 });

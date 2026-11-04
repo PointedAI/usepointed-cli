@@ -12,6 +12,9 @@ import { createStoryTemplatesCommand } from "./commands/story-templates.js";
 import { createInvitesCommand } from "./commands/invites.js";
 import { createSmartIntakeCommand } from "./commands/smart-intake.js";
 
+import { createInterviewsCommand } from "./commands/interviews.js";
+import { createAdminCommand } from "./commands/admin.js";
+
 const program = new Command();
 
 program
@@ -19,7 +22,7 @@ program
   .description(
     "Pointed CLI for managing accounts, contacts, campaigns, survey links, and response exports from the terminal.",
   )
-  .version("0.3.0");
+  .version("0.4.0");
 
 program.addCommand(createAuthCommand());
 program.addCommand(createConfigCommand());
@@ -31,5 +34,8 @@ program.addCommand(createResponsesCommand());
 program.addCommand(createStoryTemplatesCommand());
 program.addCommand(createInvitesCommand());
 program.addCommand(createSmartIntakeCommand());
+
+program.addCommand(createInterviewsCommand());
+program.addCommand(createAdminCommand());
 
 program.parse();
