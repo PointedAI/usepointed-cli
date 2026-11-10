@@ -519,3 +519,19 @@ test('whole-account enrollment validates scope before listing or enrolling accou
   assert.notEqual(empty.code, 0);
   assert.equal(f.requests.at(-1).method, 'GET');
 });
+
+test('enrollment distinguishes inherited auto-add from explicit opt-in and opt-out', async t => {
+  const f = await fixture(t);
+  const base = ['story-templates', 'enroll', 'template-1'];
+  for (const selectors of [['--account-id', 'account-1'], ['--account-ids', 'account-1,account-2']]) {
+    for (const [flag, expected] of [[null, undefined], ['--auto-include-new-contacts', true], ['--no-auto-include-new-contacts', false]]) {
+      const result = await f.run([...base, ...selectors, ...(flag ? [flag] : [])]);
+      assert.equal(result.code, 0, result.stderr);
+      const body = f.requests.at(-1).body;
+      for (const selection of body.selections ?? [body]) {
+        assert.equal(selection.autoIncludeNewContacts, expected);
+        assert.equal(Object.hasOwn(selection, 'autoIncludeNewContacts'), expected !== undefined);
+      }
+    }
+  }
+});

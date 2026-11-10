@@ -277,6 +277,7 @@ export function createStoryTemplatesCommand(): Command {
     .option("--contact-ids <ids>", "Comma-separated contact IDs")
     .option("--contact-emails <emails>", "Comma-separated contact emails")
     .option("--auto-include-new-contacts", "Auto-include newly-created contacts")
+    .option("--no-auto-include-new-contacts", "Do not auto-include future contacts (overrides the template default)")
     .option("--data <json>", "Additional JSON request body")
     .option("--input-file <path>", "Path to a JSON request body")
     .action(

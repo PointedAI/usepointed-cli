@@ -40,7 +40,9 @@ pointed accounts import customers.csv --enroll <templateId>
 pointed story-templates get <templateId>
 ```
 
-Replace `<templateId>` with the returned ID. Omit `--enroll` to import accounts and contacts only. With `--enroll`, the template is checked before writes, and enrollment selects the successfully created or matched contacts from the file. Other contacts already on those accounts are not added by this import's enrollment step.
+Replace `<templateId>` with the returned ID. Omit `--enroll` to import accounts and contacts only. With `--enroll`, the template is checked before writes, and enrollment selects the successfully created or matched contacts from the file. Other contacts already on those accounts are not added by this import's enrollment step. A new account enrollment inherits the template's auto-add default; an existing enrollment keeps its own choice. The import has no separate auto-add override flag. Use `story-templates set-auto-include <templateId> <accountId> --enabled false` to opt an enrolled account out of future automatic additions.
+
+Creating contacts can also trigger auto-add on other templates where that account is already enrolled with auto-add enabled, even when this import omits `--enroll`. Those interviews remain unsent.
 
 Enrollment prepares interview links. It does not send invitation email or start interviews. Review the results, then use [invitation preview and send](/docs/commands#invite-email) when ready.
 
