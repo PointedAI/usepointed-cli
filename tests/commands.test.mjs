@@ -390,3 +390,132 @@ test('malformed settings files fail before network access', async t => {
     await rejectsBeforeRequest(f, [...command, '--file', file]);
   }
 });
+
+test('account details and context reach the API while both money aliases stay numeric', async t => {
+  const f = await fixture(t);
+  const contextFile = path.join(f.home, 'context.txt');
+  fs.writeFileSync(contextFile, 'Account briefing from a file.');
+  const created = await f.run(['accounts', 'create', '--name', 'Acme', '--domain', 'acme.example', '--revenue', '120000', '--renewal-date', '2027-03-31', '--field', 'Tier=Gold', '--context-file', contextFile]);
+  assert.equal(created.code, 0, created.stderr);
+  assert.deepEqual(f.requests.at(-1).body, { name: 'Acme', domain: 'acme.example', contractValue: 120000, renewalDate: '2027-03-31', fields: [{ label: 'Tier', value: 'Gold' }], context: 'Account briefing from a file.' });
+  const updated = await f.run(['accounts', 'update', 'account-1', '--website', 'https://acme.example', '--contract-value', '150000', '--clear', 'renewal-date', '--remove-field', 'Tier', '--context', 'Updated briefing.']);
+  assert.equal(updated.code, 0, updated.stderr);
+  assert.deepEqual(f.requests.at(-1), { method: 'PATCH', url: '/api/cli/v1/accounts/account-1', body: { website: 'https://acme.example', contractValue: 150000, clear: ['renewalDate'], fields: [{ label: 'Tier', value: '' }], context: 'Updated briefing.' } });
+  f.respond({ text: 'Updated briefing.', revision: 2 });
+  const context = await f.run(['accounts', 'context', 'account-1']);
+  assert.equal(context.code, 0, context.stderr);
+  assert.equal(f.requests.at(-1).url, '/api/cli/v1/accounts/account-1/context');
+  assert.deepEqual(JSON.parse(context.stdout), { text: 'Updated briefing.', revision: 2 });
+});
+
+test('account additions preserve pre-request validation', async t => {
+  const f = await fixture(t);
+  for (const args of [
+    ['accounts', 'context', '../send'],
+    ['accounts', 'create', '--name', 'Acme', '--revenue', '120000oops'],
+    ['accounts', 'update', 'account-1', '--revenue', 'Infinity'],
+    ['accounts', 'update', 'account-1', '--context', 'one', '--context-file', 'missing.txt'],
+    ['accounts', 'update', 'account-1', '--field', 'Missing equals'],
+    ['accounts', 'update', 'account-1', '--clear', 'name'],
+    ['accounts', 'update', 'account-1'],
+  ]) await rejectsBeforeRequest(f, args);
+});
+
+test('CSV import sends the file unchanged with explicit dry-run and enrollment scope', async t => {
+  const f = await fixture(t);
+  const csv = 'Company,Domain,Name,Email,Phone\nAcme,acme.example,Jane,jane@acme.example,+1 415 555 0134\n';
+  const file = path.join(f.home, 'customers.csv');
+  fs.writeFileSync(file, csv);
+  f.respond({ dryRun: true, accounts: [{ name: 'Acme', status: 'new' }], skipped: [] });
+  const preview = await f.run(['accounts', 'import', file, '--dry-run', '--enroll', 'template-1']);
+  assert.equal(preview.code, 0, preview.stderr);
+  assert.deepEqual(f.requests.at(-1), { method: 'POST', url: '/api/cli/v1/accounts/import', body: { csv, templateId: 'template-1', dryRun: true } });
+  f.respond({ summary: { accountsCreated: 1, accountsFailed: 0, contactsFailed: 0 }, accounts: [], skipped: [] });
+  const imported = await f.run(['accounts', 'import', file]);
+  assert.equal(imported.code, 0, imported.stderr);
+  assert.deepEqual(f.requests.at(-1).body, { csv });
+  await rejectsBeforeRequest(f, ['accounts', 'import', file, '--enroll', '../send']);
+});
+
+test('partial account and import failures retain complete JSON and exit nonzero without retry', async t => {
+  const f = await fixture(t);
+  const file = path.join(f.home, 'customers.csv');
+  fs.writeFileSync(file, 'Company,Domain\nAcme,acme.example\n');
+  const detail = 'Failure detail. '.repeat(16_384);
+  for (const [args, result] of [
+    [['accounts', 'create', '--name', 'Acme', '--context', 'Briefing'], { _id: 'account-1', contextError: detail }],
+    [['accounts', 'update', 'account-1', '--context', 'Briefing'], { _id: 'account-1', contextError: detail }],
+    [['accounts', 'import', file], { summary: { accountsFailed: 1, contactsFailed: 0 }, accounts: [{ status: 'failed', error: detail }] }],
+    [['accounts', 'import', file], { summary: { accountsFailed: 0, contactsFailed: 1 }, accounts: [{ contacts: [{ status: 'failed', error: detail }] }] }],
+    [['accounts', 'import', file, '--enroll', 'template-1'], { summary: { accountsFailed: 0, contactsFailed: 0 }, accounts: [], enrollment: { templateId: 'template-1', error: detail } }],
+  ]) {
+    f.respond(result);
+    const before = f.requests.length;
+    const actual = await f.run(args);
+    assert.notEqual(actual.code, 0, JSON.stringify(args));
+    assert.deepEqual(JSON.parse(actual.stdout), result);
+    assert.equal(f.requests.length, before + 1);
+  }
+});
+
+test('phone fields work in contact create, update, clearing and JSON batches', async t => {
+  const f = await fixture(t);
+  const created = await f.run(['contacts', 'create', '--account-id', 'account-1', '--name', 'Jane', '--email', 'jane@acme.example', '--phone', '+1 415 555 0134']);
+  assert.equal(created.code, 0, created.stderr);
+  assert.equal(f.requests.at(-1).body.phone, '+1 415 555 0134');
+  for (const phone of ['+1 212 555 0100', '']) {
+    const updated = await f.run(['contacts', 'update', 'contact-1', '--phone', phone]);
+    assert.equal(updated.code, 0, updated.stderr);
+    assert.deepEqual(f.requests.at(-1).body, { phone });
+  }
+  const file = path.join(f.home, 'contacts.json');
+  const rows = [{ name: 'Jane', email: 'jane@acme.example', phone: '+1 415 555 0134' }];
+  fs.writeFileSync(file, JSON.stringify(rows));
+  assert.equal((await f.run(['contacts', 'create-batch', '--account-id', 'account-1', '--input-file', file])).code, 0);
+  assert.deepEqual(f.requests.at(-1).body.contacts, rows);
+});
+
+test('template starters, product, duration and channel are forwarded without requiring a custom opening', async t => {
+  const f = await fixture(t);
+  f.respond([{ id: 'roi-stories', title: 'ROI stories' }]);
+  const starters = await f.run(['story-templates', 'starters']);
+  assert.equal(starters.code, 0, starters.stderr);
+  assert.equal(f.requests.at(-1).url, '/api/cli/v1/story-templates/starters');
+  f.respond({ _id: 'template-1' });
+  const created = await f.run(['story-templates', 'create', '--starter', 'roi-stories', '--product', 'Pointed', '--interview-length', 'quick', '--interview-channel', 'phone', '--title', 'Custom ROI title']);
+  assert.equal(created.code, 0, created.stderr);
+  assert.deepEqual(f.requests.at(-1).body, { starter: 'roi-stories', productName: 'Pointed', interviewLength: 'quick', interviewChannel: 'phone', title: 'Custom ROI title' });
+  const custom = await f.run(['story-templates', 'create', '--title', 'Renewal', '--goal', 'Learn what changed']);
+  assert.equal(custom.code, 0, custom.stderr);
+  assert.deepEqual(f.requests.at(-1).body, { title: 'Renewal', goal: 'Learn what changed' });
+  for (const extra of [[], ['--starter', 'roi-stories', '--max-rounds', '2garbage'], ['--starter', 'roi-stories', '--interview-length', 'long'], ['--starter', 'roi-stories', '--interview-channel', 'fallback']]) {
+    await rejectsBeforeRequest(f, ['story-templates', 'create', ...extra]);
+  }
+});
+
+test('whole-account enrollment validates scope before listing or enrolling accounts', async t => {
+  const f = await fixture(t);
+  const base = ['story-templates', 'enroll', 'template-1'];
+  for (const extra of [
+    ['--all-accounts', '--account-ids', 'account-1'],
+    ['--all-accounts', '--account-id', 'account-1'],
+    ['--all-accounts', '--contact-ids', 'contact-1'],
+    ['--account-ids', ''], ['--account-ids', 'account-1,'], ['--account-ids', '../send'],
+    ['--all-accounts', '--data', '{"contactEmails":["jane@acme.example"]}'],
+    ['--account-ids', 'account-1', '--data', '{"selections":[{"accountId":"account-2"}]}'],
+  ]) await rejectsBeforeRequest(f, [...base, ...extra]);
+  await rejectsBeforeRequest(f, ['story-templates', 'enroll', '../send', '--all-accounts']);
+  const selected = await f.run([...base, '--account-ids', 'account-1, account-2', '--auto-include-new-contacts']);
+  assert.equal(selected.code, 0, selected.stderr);
+  assert.deepEqual(f.requests.at(-1).body, { selections: [{ accountId: 'account-1', autoIncludeNewContacts: true }, { accountId: 'account-2', autoIncludeNewContacts: true }], autoIncludeNewContacts: true });
+  f.respond([{ _id: 'account-1' }, { _id: 'account-2' }]);
+  const before = f.requests.length;
+  const all = await f.run([...base, '--all-accounts']);
+  assert.equal(all.code, 0, all.stderr);
+  assert.deepEqual(f.requests.slice(before).map(r => [r.method, r.url]), [['GET', '/api/cli/v1/accounts'], ['POST', '/api/cli/v1/story-templates/template-1/enroll']]);
+  assert.deepEqual(f.requests.at(-1).body, { selections: [{ accountId: 'account-1' }, { accountId: 'account-2' }] });
+  f.respond([]);
+  const empty = await f.run([...base, '--all-accounts']);
+  assert.notEqual(empty.code, 0);
+  assert.equal(f.requests.at(-1).method, 'GET');
+});

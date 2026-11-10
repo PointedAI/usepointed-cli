@@ -10,6 +10,7 @@ interface Contact {
   name: string;
   email: string;
   title?: string;
+  phone?: string;
   createdAt: number;
 }
 
@@ -100,6 +101,7 @@ export function createContactsCommand(): Command {
     .requiredOption("--email <email>", "Contact email")
     .option("--campaign-id <id>", "Campaign ID for duplicate-contact link reuse")
     .option("--title <title>", "Job title")
+    .option("--phone <phone>", "Phone number (empty clears it on update)")
     .action(
       async (options: {
         accountId: string;
@@ -107,6 +109,7 @@ export function createContactsCommand(): Command {
         name: string;
         email: string;
         title?: string;
+        phone?: string;
       }) => {
         try {
           const res = await apiRequest<Contact>("POST", "/contacts", {
@@ -115,6 +118,7 @@ export function createContactsCommand(): Command {
             name: options.name,
             email: options.email,
             title: options.title,
+            phone: options.phone,
           });
           printJson(res.data);
         } catch (error) {
@@ -182,6 +186,7 @@ export function createContactsCommand(): Command {
     .option("--name <name>", "Contact name")
     .option("--email <email>", "Contact email")
     .option("--title <title>", "Job title")
+    .option("--phone <phone>", "Phone number (empty clears it on update)")
     .action(
       async (
         id: string,
@@ -189,6 +194,7 @@ export function createContactsCommand(): Command {
           name?: string;
           email?: string;
           title?: string;
+          phone?: string;
         },
       ) => {
         try {
@@ -196,6 +202,7 @@ export function createContactsCommand(): Command {
             name: options.name,
             email: options.email,
             title: options.title,
+            phone: options.phone,
           });
           printJson(res.data);
         } catch (error) {

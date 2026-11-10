@@ -74,3 +74,16 @@ This prepares a link for the selected contact. Omitting both contact selectors i
 Review the generated link before sharing it. To use Pointed invitation email, first [preview the invitation](/docs/commands#invite-email), then send it when you are ready. Sending and reminding are separate commands that contact the customer.
 
 After a customer responds, [list and export responses](/docs/response-exports). For repeatable collection across accounts, use [story templates](/docs/story-templates).
+
+## Import a spreadsheet
+
+The upcoming 0.5.0 source version adds a shorter path from a spreadsheet to interview links:
+
+```bash
+pointed story-templates create --starter roi-stories --product "Your product"
+pointed accounts import customers.csv --dry-run
+pointed accounts import customers.csv --enroll <templateId>
+pointed story-templates get <templateId>
+```
+
+These commands require [running from source](/docs/installation#run-from-source) until 0.5.0 is published to npm. Review the [CSV format and partial results](/docs/account-imports) before importing. Enrollment prepares links and sends no email.

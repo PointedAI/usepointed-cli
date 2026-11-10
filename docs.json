@@ -58,6 +58,7 @@
         "group": "Reference",
         "pages": [
           "docs/commands",
+          "docs/account-imports",
           "docs/story-templates",
           "docs/smart-intake",
           "docs/response-exports"

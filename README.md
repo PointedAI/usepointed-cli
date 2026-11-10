@@ -14,6 +14,8 @@ Use macOS or Linux and Node.js 20 or newer. Node.js 22 is recommended for reposi
 
 You need an existing Pointed account with workspace access. New users can [request access](https://usepointed.ai/contact?reason=general); installing the CLI does not create an account. Start with the [quickstart](https://docs.usepointed.ai/docs/quickstart) for a complete first run.
 
+**Source availability:** this branch is preparing 0.5.0. The new spreadsheet imports, account/context fields, contact phones and template shortcuts below are not yet on npm; the latest published version is 0.4.0. Run from source to use them now.
+
 During development from this repository:
 
 ```bash
@@ -81,6 +83,31 @@ pointed responses list --campaign-id <campaignId>
 pointed responses download --campaign-id <campaignId> --output-dir ./pointed-export
 ```
 
+## Spreadsheet to interviews (0.5.0 source)
+
+```bash
+pointed story-templates starters
+pointed story-templates create --starter roi-stories --product "Your product" --interview-length quick
+pointed accounts import customers.csv --dry-run
+pointed accounts import customers.csv --enroll <templateId>
+pointed story-templates get <templateId>
+```
+
+CSV/TSV headers can identify Company, Domain, Industry, Name (or First/Last name), Email, Job title and Phone. Imports are limited to 2 MB of UTF-8 CSV, 1,000 accounts and 1,000 contacts per request; split larger files. Dry runs create nothing. Enrollment prepares links and sends no email. Review skipped rows and partial results before retrying.
+
+```bash
+pointed accounts create --name "Acme" --domain acme.example --revenue 120000 --renewal-date 2027-03-31
+pointed accounts update <accountId> --field "Open opportunities=2" --context-file briefing.txt
+pointed accounts update <accountId> --remove-field "Open opportunities" --clear renewal-date
+pointed accounts context <accountId>
+pointed contacts update <contactId> --phone "+1 415 555 0134"
+pointed story-templates enroll <templateId> --account-ids accountA,accountB
+```
+
+Use either `--account-ids` or `--all-accounts`; these whole-account modes cannot be combined with single-account/contact selectors or JSON selections. `--contract-value` remains a strict numeric alias for `--revenue` on create and update. Context replaces the saved briefing. If its write fails after account creation, retry with `accounts update` using the returned account ID.
+
+See the [account import guide](https://docs.usepointed.ai/docs/account-imports) and [template guide](https://docs.usepointed.ai/docs/story-templates).
+
 ## Smart Intake
 
 Bulk-import accounts and contacts with AI-powered parsing:
@@ -140,6 +167,8 @@ OAuth state uses an owned, private `~/.pointed` directory (0700) and regular JSO
 Response downloads create a fresh private directory for each export, with owner-only files. Repeated downloads preserve earlier exports. The selected output directory must be owned by you and not writable by other users. Exported filenames cannot escape that directory.
 
 ## Automation results
+
+Account imports print complete results and exit with status 1 for failed account/contact writes or enrollment. Account create/update also exits with status 1 when the separate context write fails, retaining the saved account and `contextError` in JSON.
 
 Contact batches and link generation print their complete results and exit with status 1 if any item fails. Response downloads also exit with status 1 when a response or ready video cannot be exported, while preserving completed files. Export manifests record the final download outcomes; media still preparing or unavailable remains a warning.
 

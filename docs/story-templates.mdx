@@ -1,11 +1,24 @@
 ---
-title: Story templates
-description: Use story templates to prepare account-level customer story collection.
+title: Interview templates
+description: Create reusable interview plans and prepare links for selected accounts or contacts.
 ---
 
-Story templates are reusable collection plans. Enrolling an account prepares survey links for contacts on that account. It does not send customer email immediately.
+Interview templates are reusable collection plans. The CLI command remains `story-templates`. Enrollment prepares links for contacts; it does not send customer email or start a call.
 
-## Create a template
+<Note>
+  Starters, product/channel/length options and whole-account enrollment shortcuts are in the upcoming 0.5.0 source version. npm currently publishes 0.4.0. [Run from source](/docs/installation#run-from-source) to use the new options.
+</Note>
+
+## Create from a use case
+
+```bash
+pointed story-templates starters
+pointed story-templates create --starter roi-stories --product "Your product" --interview-length quick
+```
+
+A starter supplies its title, goal, opening approach and default length. Options you provide override those defaults. `--product` is an alias for `--product-name`. `--interview-length` accepts `quick` (about 2–3 minutes), `standard` (4–6) or `deep` (7–10). `--interview-channel` accepts `browser_audio` or `phone`; the server enforces channel availability and saved settings.
+
+Without a starter, supply a title and goal. The respondent role defaults to `Account stakeholder`, and a custom initial question is optional:
 
 ```bash
 pointed story-templates create \
@@ -37,10 +50,26 @@ Enroll specific contacts:
 ```bash
 pointed story-templates enroll <templateId> \
   --account-id <accountId> \
-  --contact-emails jane@example.com,john@example.com
+  --contact-emails jane@acme.example,sam@acme.example
 ```
 
 Omitting both contact selectors includes all contacts on the account. Explicitly empty selectors, including empty shell variables, are rejected. Supply either `--contact-ids` or `--contact-emails`, not both.
+
+## Enroll whole accounts
+
+```bash
+pointed story-templates enroll <templateId> --account-ids accountA,accountB
+```
+
+To include every account in the current workspace, explicitly use:
+
+```bash
+pointed story-templates enroll <templateId> --all-accounts
+```
+
+These modes include everyone on the selected accounts. Choose either `--account-ids` or `--all-accounts`; they cannot be combined with single-account/contact selectors or a JSON selection body. An empty account list is rejected. Add `--auto-include-new-contacts` only when future contacts on those accounts should also receive prepared links.
+
+For spreadsheet-based enrollment of just the file's people, use [account import with `--enroll`](/docs/account-imports#import-and-prepare-interviews).
 
 ## Manage enrollment
 
@@ -49,7 +78,7 @@ pointed story-templates account <templateId> <accountId>
 pointed story-templates set-auto-include <templateId> <accountId> --enabled false
 ```
 
-`autoIncludeNewContacts` controls whether newly created contacts on the enrolled account should automatically receive prepared survey links for the template.
+`autoIncludeNewContacts` controls whether newly created contacts on an enrolled account receive prepared interview links for the template.
 
 ## Legacy imports
 
@@ -58,4 +87,4 @@ pointed story-templates legacy-import-summary
 pointed story-templates import-legacy
 ```
 
-Legacy import creates story templates for eligible existing campaigns and attaches the existing campaign records. It does not send new customer email.
+Legacy import creates interview templates for eligible existing campaigns and attaches the existing campaign records. It does not send new customer email.

@@ -1,0 +1,80 @@
+---
+title: Account imports and context
+description: Import a customer spreadsheet, add account details and context, and prepare interview links.
+---
+
+<Note>
+  These commands are in the upcoming 0.5.0 source version, not npm's current 0.4.0 release. [Run from source](/docs/installation#run-from-source) to use them now.
+</Note>
+
+## Prepare the spreadsheet
+
+Use a CSV or tab-separated file with headers. Column order does not matter. Supported headings include Company, Domain, Industry, Name (or First name and Last name), Email, Job title, and Phone.
+
+```csv
+Company,Domain,Industry,Name,Email,Job title,Phone
+Acme,acme.example,Software,Jane Doe,jane@acme.example,VP Product,+1 415 555 0134
+Acme,acme.example,Software,Sam Lee,sam@acme.example,Operations,
+Globex,globex.example,Manufacturing,Ava Lind,ava@globex.example,COO,
+```
+
+Imports match existing companies by domain, including their saved respondent email domain, or by a compatible company name. Conflicting known domains remain separate. People are grouped under their company; contacts already on that account are reported as existing. A row with a company or domain but no email can create an account without contacts. Rows that cannot be used appear in `skipped` with their reason.
+
+Each request accepts up to 2 MB of UTF-8 CSV text, 1,000 accounts and 1,000 contacts. Split larger files. These limits bound the request; they do not guarantee that every file finishes within a deployment's time limit.
+
+## Review without creating records
+
+```bash
+pointed accounts import customers.csv --dry-run
+```
+
+Review the planned accounts, existing-account matches, contacts, off-domain counts and skipped rows. A dry run creates no accounts, contacts or invitations. Actual writes still enforce workspace, domain and phone validation.
+
+## Import and prepare interviews
+
+Create a template or reuse an ID from `pointed story-templates list`:
+
+```bash
+pointed story-templates create --starter roi-stories --product "Your product"
+pointed accounts import customers.csv --enroll <templateId>
+pointed story-templates get <templateId>
+```
+
+Replace `<templateId>` with the returned ID. Omit `--enroll` to import accounts and contacts only. With `--enroll`, the template is checked before writes, and enrollment selects the successfully created or matched contacts from the file. Other contacts already on those accounts are not added by this import's enrollment step.
+
+Enrollment prepares interview links. It does not send invitation email or start interviews. Review the results, then use [invitation preview and send](/docs/commands#invite-email) when ready.
+
+## Read partial results
+
+The result contains per-account and per-contact outcomes, skipped rows, and a summary. Failed account/contact writes or a failed enrollment produce exit status 1 while preserving the complete JSON output. Existing contacts and skipped rows are reported separately; review `skipped` even when the command exits successfully.
+
+```bash
+pointed accounts import customers.csv --enroll <templateId> > import-result.json
+```
+
+A failed row or enrollment does not roll back successful account/contact writes. Inspect the result and retry the unresolved work. A repeated import reuses matching accounts and existing contacts; it does not update existing contact details. Use `contacts update` for changes to an existing person.
+
+If a timeout prevents a result from returning, inspect the workspace before retrying. The command does not automatically retry an uncertain import.
+
+## Edit account details
+
+```bash
+pointed accounts update <accountId> --industry Logistics --revenue 120000 --renewal-date 2027-03-31
+pointed accounts update <accountId> --field "Open opportunities=2" --field "Tier=Gold"
+pointed accounts update <accountId> --remove-field "Tier" --clear renewal-date
+```
+
+Custom fields match labels without case sensitivity. Repeat `--field` or `--remove-field` for multiple changes. `--clear` accepts `revenue`, `contract-value`, and `renewal-date`, separated by commas. Do not set and clear the same field in one request. Account domains must remain unique and cannot replace a fixed respondent domain.
+
+## Save interviewer context
+
+```bash
+pointed accounts context <accountId>
+pointed accounts update <accountId> --context-file briefing.txt
+```
+
+Use `--context "Text"` for a short briefing or `--context-file` for a UTF-8 file, but not both. Context can contain up to 12,000 characters. It replaces the saved account briefing; it does not append. The read command returns the text and revision, but these CLI write flags do not accept an expected revision. Review and reconcile concurrent edits before saving.
+
+Changing saved account context does not rewrite an accepted interview's frozen configuration. Existing prepared interviews have their own context snapshots; review any intended update in Pointed.
+
+Account fields and context save separately. If the fields save but context fails, the command returns the saved account with `contextError` and exits with status 1. Retry the context on that account ID with `accounts update`; do not repeat `accounts create`.

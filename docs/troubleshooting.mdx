@@ -57,6 +57,16 @@ Inspect the affected path first. The CLI expects `~/.pointed` to be owned by you
 
 Correct permissions only after confirming that the path is your own directory or regular file. Preserve existing configuration and exports; do not delete the directory as a generic fix. If ownership is wrong or a link is involved, ask your administrator or [Pointed support](https://usepointed.ai/contact?reason=general) for help. Export directories must also be owned by you and not writable by other users.
 
+## A new account or template option is unknown
+
+Run `pointed --version`. Spreadsheet import, account context/custom fields, phone options and template starter/bulk-enrollment shortcuts are in the upcoming 0.5.0 source version. They are not included in npm's current 0.4.0 release. Follow [Run from source](/docs/installation#run-from-source) to use them now.
+
+## An account import or context save reports failure
+
+A command can print JSON and still exit with status 1. Preserve that output: `summary.accountsFailed`, `summary.contactsFailed`, per-account/contact errors and `enrollment.error` identify what remains. A failed enrollment does not roll back accounts or contacts that were already created. Skipped CSV rows appear in `skipped` for review; inspect them even when no write failed.
+
+If a create or update returns `contextError`, the other account fields may already be saved. Retry only the context with `accounts update <accountId> --context-file ...`. If a request times out before returning results, inspect accounts and contacts before retrying. See [Account imports and context](/docs/account-imports).
+
 ## A batch or export reports failure
 
 Read the complete output before retrying. Contact batches and link generation can succeed for some items and still exit with status 1 when others fail. Response exports preserve successful files and write [manifests](/docs/response-exports) with final outcomes. Retry only what still needs attention.
