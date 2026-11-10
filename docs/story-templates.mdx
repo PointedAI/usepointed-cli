@@ -67,7 +67,7 @@ To include every account in the current workspace, explicitly use:
 pointed story-templates enroll <templateId> --all-accounts
 ```
 
-These modes include everyone on the selected accounts. Choose either `--account-ids` or `--all-accounts`; they cannot be combined with single-account/contact selectors or a JSON selection body. An empty account list is rejected. Add `--auto-include-new-contacts` only when future contacts on those accounts should also receive prepared links.
+These modes include everyone on the selected accounts. Choose either `--account-ids` or `--all-accounts`; they cannot be combined with single-account/contact selectors or a JSON selection body. An empty account list is rejected. Omitting both auto-include flags inherits the template default for a newly enrolled account. An already enrolled account keeps its existing choice. Use `--auto-include-new-contacts` to opt in or `--no-auto-include-new-contacts` to opt out explicitly.
 
 For spreadsheet-based enrollment of just the file's people, use [account import with `--enroll`](/docs/account-imports#import-and-prepare-interviews).
 
@@ -78,7 +78,27 @@ pointed story-templates account <templateId> <accountId>
 pointed story-templates set-auto-include <templateId> <accountId> --enabled false
 ```
 
-`autoIncludeNewContacts` controls whether newly created contacts on an enrolled account receive prepared interview links for the template.
+`autoIncludeNewContacts` controls whether newly created contacts on an enrolled account receive prepared, unsent interview links. Neither enrollment nor auto-add sends invitations.
+
+```bash
+pointed story-templates enroll <templateId> --account-id <accountId> --no-auto-include-new-contacts
+```
+
+In the app, **Interview settings → People → Auto-add new people** sets the default for future account enrollments. Saving a change to this template-wide switch also replaces the auto-add choice on every currently enrolled account. The account's Templates card and `set-auto-include` can override that choice afterward; another change to the template-wide switch replaces those overrides again. Enabling it does not retroactively enroll existing contacts.
+
+The CLI has no dedicated template-wide switch command. Use the app to change the template-wide default. The opt-out enrollment flag is available in the upcoming 0.5.0 source version; npm 0.4.0 users can pass `"autoIncludeNewContacts": false` in an enrollment JSON body or use `set-auto-include` for an existing enrollment.
+
+## Edit settings and review existing interviews
+
+The app's Interview settings page saves the name, goal, length, participant channels, opening question, product context and guidance. Phone and web can both be selected so the participant chooses. Changes to interview content offer a review of eligible unstarted interviews: save the template alone to preserve existing invitations, or select the unstarted interviews to update. Accepted or started interviews keep their frozen settings. A concurrent edit keeps your draft and asks you to load the saved version before retrying.
+
+Auto-add by itself affects future contact enrollment, so it does not require an unstarted-interview review. A template-wide auto-add change still replaces the per-account choices described above.
+
+## Read interview statuses
+
+The app groups the saved states into Not sent, Sent, In progress, Completed, Didn't finish and Expired, with Removed shown separately. Partial responses appear under **Didn't finish**, not Completed. These are display groups; the CLI continues returning the original backend states, so scripts should keep handling those states.
+
+Recipients counts and status matches load in pages. A `+` means a count is still loading; it becomes exact after all pages arrive. The completed-interview count excludes test/demo and moderated results. An account or contact can match more than one status when it has multiple interviews. Historical completions remain counted after a contact is removed, although that contact no longer appears in the directory.
 
 ## Legacy imports
 

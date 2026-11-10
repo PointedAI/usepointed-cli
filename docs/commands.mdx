@@ -136,3 +136,8 @@ pointed admin demos voice-settings set <definitionId> --file phone-settings.json
 ```
 
 Use `--channel browser_audio` for browser voice. The editable envelope contains `channel`, `expectedRevision`, and `configuration`, including `elevenLabsSettingsJson`. Blank connection identifiers resolve to the standard Pointed connection on the server. The server rechecks current platform-admin authority before committing a save. These commands configure voice channels independently of the founder text-interview engine and do not initiate a call.
+
+
+### Control future contacts during enrollment
+
+In the upcoming 0.5.0 source version, `story-templates enroll` accepts `--auto-include-new-contacts` and `--no-auto-include-new-contacts`. Omitting both inherits the template default for new account enrollments and preserves existing account choices. See [Interview templates](/docs/story-templates#manage-enrollment) for template-wide and per-account behavior.

@@ -231,3 +231,6 @@ pointed admin demos voice-settings set <definitionId> --file phone-settings.json
 ```
 
 Use `--channel browser_audio` for browser voice. The editable envelope contains `channel`, `expectedRevision`, and `configuration`, including `elevenLabsSettingsJson`. Blank connection identifiers resolve to the standard Pointed connection on the server. The server rechecks current platform-admin authority before committing a save. These commands configure voice channels independently of the founder text-interview engine and do not initiate a call.
+
+
+When enrolling accounts, omit auto-include flags to inherit the template default for new enrollments (existing enrollments keep their choice). Use `--auto-include-new-contacts` or `--no-auto-include-new-contacts` for an explicit choice. The opt-out flag is in the upcoming 0.5.0 source version. A template-wide auto-add change in the app replaces all enrolled accounts' choices; auto-add prepares interviews without sending them. See the [template guide](https://docs.usepointed.ai/docs/story-templates).
