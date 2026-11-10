@@ -3,6 +3,16 @@ title: Changelog
 description: Published Pointed CLI releases and the source changes included in them.
 ---
 
+## 0.5.0 — Unreleased source
+
+- CSV/TSV account and contact imports with dry runs, company matching, phone fields, and optional template enrollment.
+- Account domains, revenue aliases, renewal dates, custom fields, clearing and interviewer context. Context failures retain the saved account and exit nonzero.
+- Contact phone create/update/clear and JSON batch support.
+- Interview-template starters, product, channel and length options; whole-account enrollment with mutually exclusive scopes.
+- Opaque IDs, strict numeric parsing, empty-selector guards and complete failure output are preserved. Partial import or enrollment failures print the full JSON result and exit with status 1.
+
+These features have not been published to npm. Use [Run from source](/docs/installation#run-from-source); npm latest remains 0.4.0.
+
 ## 0.4.0 — November 6, 2026
 
 Adds workspace interview settings commands for reusable demos and interview templates, effective ElevenLabs provider tuning reads, and founder browser/phone settings for platform administrators. JSON exports retain the saved revision; conflicting writes preserve the current revision in machine-readable output and never retry automatically. Configuration saves do not start calls or recordings.

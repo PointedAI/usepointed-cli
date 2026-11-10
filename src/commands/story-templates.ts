@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { readFile } from "node:fs/promises";
 import { apiRequest } from "../lib/api-client.js";
 import { printJson, printError } from "../lib/output.js";
@@ -71,7 +71,7 @@ function parseBoolean(value: string): boolean {
 
 export function createStoryTemplatesCommand(): Command {
   const storyTemplates = new Command("story-templates").description(
-    "Manage story templates and enrollment flows",
+    "Manage interview templates and enrollment flows",
   );
 
   storyTemplates
@@ -88,34 +88,66 @@ export function createStoryTemplatesCommand(): Command {
     });
 
   storyTemplates
+    .command("starters")
+    .description("List the use-case starters (ROI stories, win/loss, ...) for `create --starter`")
+    .action(async () => {
+      try {
+        printJson((await apiRequest<unknown[]>("GET", "/story-templates/starters")).data);
+      } catch (error) {
+        printError(error instanceof Error ? error.message : "Request failed");
+        process.exit(1);
+      }
+    });
+
+  storyTemplates
     .command("create")
-    .description("Create a story template")
-    .requiredOption("--title <title>", "Story template title")
+    .description(
+      "Create an interview template. Start from a use case with --starter (see `starters`), " +
+        "or give --title and --goal yourself; options you pass override the starter's.",
+    )
+    .option("--starter <id>", "Use-case starter, e.g. roi-stories")
+    .option("--title <title>", "Interview template title")
+    .option("--goal <goal>", "What the interview should learn")
+    .option("--product-name <name>", "The product the interview is about (used in the opening)")
+    .option("--product <name>", "Same as --product-name")
     .option("--customer-facing-name <name>", "Name shown to customers")
-    .requiredOption("--role <role>", "Target respondent role")
-    .requiredOption("--goal <goal>", "Story collection goal")
-    .requiredOption("--initial-question <question>", "Opening survey question")
-    .option("--description <description>", "Story template description")
-    .option("--max-rounds <rounds>", "Maximum survey rounds", parsePositiveInteger)
+    .option("--role <role>", "Target respondent role (default: Account stakeholder)")
+    .option("--initial-question <question>", "Opening interview question")
+    .option("--description <description>", "Interview template description")
+    .option("--max-rounds <rounds>", "Maximum interview rounds", parsePositiveInteger)
+    .addOption(new Option("--interview-channel <channel>", "Participant interview type").choices(["phone", "browser_audio"]))
+    .addOption(new Option("--interview-length <length>", "Interview length: quick (2–3 min), standard (4–6), deep (7–10)").choices(["quick", "standard", "deep"]))
     .action(
       async (options: {
-        title: string;
+        starter?: string;
+        title?: string;
+        goal?: string;
         customerFacingName?: string;
-        role: string;
-        goal: string;
-        initialQuestion: string;
+        productName?: string;
+        product?: string;
+        role?: string;
+        initialQuestion?: string;
         description?: string;
         maxRounds?: number;
+        interviewChannel?: "phone" | "browser_audio";
+        interviewLength?: "quick" | "standard" | "deep";
       }) => {
         try {
+          if (!options.starter && (!options.title || !options.goal)) {
+            throw new Error("Pass --starter <id>, or both --title and --goal. See `pointed story-templates starters`.");
+          }
           const res = await apiRequest<StoryTemplate>("POST", "/story-templates", {
+            starter: options.starter,
             title: options.title,
             customerFacingName: options.customerFacingName,
+            productName: options.productName ?? options.product,
             role: options.role,
             goal: options.goal,
             initialQuestion: options.initialQuestion,
             description: options.description,
             maxRounds: options.maxRounds,
+            interviewChannel: options.interviewChannel,
+            interviewLength: options.interviewLength,
           });
           printJson(res.data);
         } catch (error) {
@@ -240,6 +272,8 @@ export function createStoryTemplatesCommand(): Command {
     .description("Enroll accounts or contacts in a story template")
     .argument("<id>", "Story template ID")
     .option("--account-id <id>", "Account ID")
+    .option("--account-ids <ids>", "Comma-separated account IDs: enroll everyone at each")
+    .option("--all-accounts", "Enroll everyone at every account in the workspace")
     .option("--contact-ids <ids>", "Comma-separated contact IDs")
     .option("--contact-emails <emails>", "Comma-separated contact emails")
     .option("--auto-include-new-contacts", "Auto-include newly-created contacts")
@@ -250,6 +284,8 @@ export function createStoryTemplatesCommand(): Command {
         id: string,
         options: {
           accountId?: string;
+          accountIds?: string;
+          allAccounts?: boolean;
           contactIds?: string;
           contactEmails?: string;
           autoIncludeNewContacts?: boolean;
@@ -259,6 +295,23 @@ export function createStoryTemplatesCommand(): Command {
       ) => {
         try {
           const body = await buildRequestBody(options);
+          const templateId = encodeId(id);
+          if (options.allAccounts && options.accountIds !== undefined) {
+            throw new Error("Choose either --all-accounts or --account-ids, not both.");
+          }
+          if (options.allAccounts || options.accountIds !== undefined) {
+            if (options.accountId !== undefined || options.contactIds !== undefined || options.contactEmails !== undefined ||
+              ["accountId", "contactIds", "contactEmails", "selections"].some(key => body[key] !== undefined)) {
+              throw new Error("Whole-account flags cannot be combined with account/contact selectors or JSON selections.");
+            }
+            const many = options.allAccounts
+              ? ((await apiRequest<{ _id: string }[]>("GET", "/accounts")).data ?? []).map(account => encodeId(account._id))
+              : parseContactSelector(options.accountIds!, "--account-ids").map(encodeId);
+            if (!many.length) throw new Error("No accounts to enroll");
+            body["selections"] = many.map(accountId => ({ accountId,
+              ...(options.autoIncludeNewContacts !== undefined ? { autoIncludeNewContacts: options.autoIncludeNewContacts } : {}),
+            }));
+          }
           if (options.accountId !== undefined) {
             body["accountId"] = encodeId(options.accountId);
           }
@@ -288,7 +341,7 @@ export function createStoryTemplatesCommand(): Command {
 
           const res = await apiRequest<StoryTemplateEnrollment>(
             "POST",
-            `/story-templates/${encodeId(id)}/enroll`,
+            `/story-templates/${templateId}/enroll`,
             body,
           );
           printJson(res.data);

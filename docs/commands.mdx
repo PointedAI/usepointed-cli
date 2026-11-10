@@ -3,23 +3,39 @@ title: Commands
 description: Core Pointed CLI commands for accounts, contacts, campaigns, links, and invites.
 ---
 
+<Note>
+  Account import/context, expanded account fields, phone options and template shortcuts are in the upcoming 0.5.0 source version. npm currently publishes 0.4.0. [Run from source](/docs/installation#run-from-source) to use the new commands.
+</Note>
+
 ## Accounts
 
 ```bash
 pointed accounts list
 pointed accounts get <accountId>
-pointed accounts create --name "Acme Corp" --industry "Technology"
-pointed accounts update <accountId> --name "Acme Inc" --contract-value 120000
+pointed accounts create --name "Acme" --domain acme.example --revenue 120000 --renewal-date 2027-03-31
+pointed accounts update <accountId> --industry Logistics --field "Open opportunities=2"
+pointed accounts update <accountId> --clear renewal-date --remove-field "Open opportunities"
+pointed accounts update <accountId> --context-file account-briefing.txt
+pointed accounts context <accountId>
+pointed accounts import customers.csv --dry-run
+pointed accounts import customers.csv --enroll <templateId>
 ```
 
-Contract values must be finite, nonnegative numbers without currency symbols or thousands separators. For example, use `120000`, not `120,000`.
+`--revenue` and `--contract-value` accept finite, nonnegative numbers without currency symbols or thousands separators. Use `120000`, not `120,000`. Both aliases work on create and update. Dates use `YYYY-MM-DD`.
+
+Create accepts `--name`, `--domain`, `--industry`, `--revenue` / `--contract-value`, `--renewal-date`, repeated `--field "Label=Value"`, `--notes`, and either `--context` or `--context-file`. Update accepts those fields plus `--website`, repeated `--remove-field`, and `--clear revenue,renewal-date`. Fixed respondent-domain rules still apply to account updates.
+
+Context replaces the saved account briefing. If the account write succeeds but its context fails, the command prints the saved account with `contextError` and exits with status 1. Retry the context with `accounts update <accountId>` instead of creating another account.
+
+See [Account imports and context](/docs/account-imports) for spreadsheet matching, limits and partial-result handling.
 
 ## Contacts
 
 ```bash
 pointed contacts list --account-id <accountId>
-pointed contacts create --account-id <accountId> --name "Jane Doe" --email jane@example.com
-pointed contacts update <contactId> --email jane.new@example.com
+pointed contacts create --account-id <accountId> --name "Jane Doe" --email jane@acme.example --phone "+1 415 555 0134"
+pointed contacts update <contactId> --phone "+1 212 555 0100"
+pointed contacts update <contactId> --phone ""
 pointed contacts delete <contactId>
 ```
 
@@ -36,10 +52,13 @@ pointed contacts create-batch --account-id <accountId> --input-file contacts.jso
   {
     "name": "Jane Doe",
     "email": "jane@example.com",
-    "title": "VP Product"
+    "title": "VP Product",
+    "phone": "+1 415 555 0134"
   }
 ]
 ```
+
+Phone numbers accept 7–15 digits with common separators. An empty `--phone ""` clears the saved number.
 
 Batch creation prints the complete result as JSON and exits with status 1 if any row fails. Existing contacts are reported separately and do not count as failed rows. Contact department fields are not supported; use `--title` for a job title.
 
