@@ -115,7 +115,7 @@ export function createStoryTemplatesCommand(): Command {
     .option("--initial-question <question>", "Opening interview question")
     .option("--description <description>", "Interview template description")
     .option("--max-rounds <rounds>", "Maximum interview rounds", parsePositiveInteger)
-    .addOption(new Option("--interview-channel <channel>", "Participant interview type").choices(["phone", "browser_audio"]))
+    .addOption(new Option("--interview-channel <channel>", "Participant interview type").choices(["phone", "browser_audio", "browser_video", "participant_choice"]))
     .addOption(new Option("--interview-length <length>", "Interview length: quick (2–3 min), standard (4–6), deep (7–10)").choices(["quick", "standard", "deep"]))
     .action(
       async (options: {
@@ -129,7 +129,7 @@ export function createStoryTemplatesCommand(): Command {
         initialQuestion?: string;
         description?: string;
         maxRounds?: number;
-        interviewChannel?: "phone" | "browser_audio";
+        interviewChannel?: "phone" | "browser_audio" | "browser_video" | "participant_choice";
         interviewLength?: "quick" | "standard" | "deep";
       }) => {
         try {

@@ -9,6 +9,8 @@ Open **Results** and search a transcript, or filter the interviews by template o
 
 Use **Share** to copy a link for someone with access to the workspace. **Download transcript** saves a plain-text copy. For the full export, including available media and the manifest, use the CLI commands below.
 
+Web video records the participant’s camera and the conversation audio after the participant agrees. Open the interview in Results to watch the camera recording once it finishes processing. Its availability is shown separately from the transcript and the voice recording.
+
 ## Review patterns across interviews
 
 In **Results** or **Analytics**, choose **AI insights** to open the workspace agent. Pick a suggested question or ask your own about quotes, themes, or feedback across interviews. The agent asks for approval before it makes workspace changes.
@@ -49,6 +51,7 @@ Single response:
   round-2-transcript.txt
   response-<contact-slug>-<date>-round-1.mp4
   response-<contact-slug>-<date>-round-2.mp4
+  response-<contact-slug>-<date>-participant.mp4
   ai-summary.txt
   insights.json
   manifest.json
@@ -64,6 +67,7 @@ Full campaign:
     response.json
     round-*-transcript.txt
     response-<contact-slug>-<date>-round-*.mp4
+    response-<contact-slug>-<date>-participant.mp4
     ai-summary.txt
     insights.json
     manifest.json
@@ -72,6 +76,8 @@ Full campaign:
 Every run creates a new private export directory and preserves previous exports.
 
 In `response.json`, `response.sentiment` is the interview’s displayed label (`positive`, `neutral` or `negative`). New summaries can supply the label directly. Older scored interviews derive it from `response.sentimentScore`, which remains on its original −1 to +1 scale. An interview without either value exports a null label. Files downloaded before this field was introduced can omit it.
+
+In the 0.5.0 source CLI, a web video interview includes one `*-participant.mp4` when the full recording is ready. The corresponding `videoDownloads` entry has `kind: "participant_video"`. A recording that is still preparing has no local file. Run the download again after processing finishes. The latest npm release (0.4.0) supports round videos. [Run the current CLI from source](/docs/installation#run-from-source) to download participant recordings.
 
 Each response's `manifest.json` includes final `processingWarnings` and a `videoDownloads` entry for each asset, with its filename, download status, and any failure reason. These reflect the download attempt, including network and file errors, rather than only the API's initial processing state.
 

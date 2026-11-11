@@ -308,12 +308,12 @@ test('interview settings round-trip the revision and exact native JSON without e
   const f = await fixture(t);
   const native = JSON.stringify({ agent: { prompt: { llm: 'gpt-4o-mini', temperature: 0.2 } }, turn: { turn_eagerness: 'patient' } }, null, 2);
   const settings = { revision: 7, openingQuestion: 'What changed?', context: 'Product context', instructions: 'Let people finish.', elevenLabsSettingsJson: native,
-    target: { kind: 'story_template', id: 'template-1' }, actorId: 'private-internal-actor', url: 'https://app.usepointed.ai/dashboard' };
+    interviewChannel: 'browser_video', target: { kind: 'story_template', id: 'template-1' }, actorId: 'private-internal-actor', url: 'https://app.usepointed.ai/dashboard' };
   f.respond(settings);
   const fetched = await f.run(['interviews', 'settings', 'get', 'template-1', '--kind', 'story_template']);
   assert.equal(fetched.code, 0, fetched.stderr);
   const editable = JSON.parse(fetched.stdout);
-  assert.deepEqual(editable, { expectedRevision: 7, openingQuestion: settings.openingQuestion, context: settings.context, instructions: settings.instructions, elevenLabsSettingsJson: native });
+  assert.deepEqual(editable, { expectedRevision: 7, openingQuestion: settings.openingQuestion, context: settings.context, instructions: settings.instructions, elevenLabsSettingsJson: native, interviewChannel: 'browser_video' });
   assert.equal(f.requests.at(-1).url, '/api/cli/v1/interview-settings/story_template/template-1');
   const file = path.join(f.home, 'settings.json');
   fs.writeFileSync(file, JSON.stringify(editable));
@@ -322,6 +322,31 @@ test('interview settings round-trip the revision and exact native JSON without e
   assert.equal(saved.code, 0, saved.stderr);
   assert.deepEqual(f.requests.at(-1), { method: 'PUT', url: '/api/cli/v1/interview-settings/story_template/template-1', body: editable });
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), editable);
+});
+
+test('template settings keep legacy, single-channel and participant-choice selections, while demos omit camera settings', async t => {
+  const f = await fixture(t);
+  const base = { revision: 4, openingQuestion: 'How was it?', context: '', instructions: '', elevenLabsSettingsJson: '{}' };
+  const file = path.join(f.home, 'settings.json');
+  for (const channel of [null, 'browser_audio', 'phone', 'participant_choice', undefined]) {
+    f.respond({ ...base, interviewChannel: channel });
+    const result = await f.run(['interviews', 'settings', 'get', 'template-1', '--kind', 'story_template']);
+    assert.equal(result.code, 0, result.stderr);
+    const editable = JSON.parse(result.stdout);
+    assert.equal(editable.interviewChannel, channel);
+    fs.writeFileSync(file, JSON.stringify(editable));
+    const saved = await f.run(['interviews', 'settings', 'set', 'template-1', '--kind', 'story_template', '--file', file]);
+    assert.equal(saved.code, 0, saved.stderr);
+    assert.deepEqual(f.requests.at(-1).body, editable);
+  }
+  f.respond({ ...base, interviewChannel: null });
+  const demo = await f.run(['interviews', 'settings', 'get', 'demo-1']);
+  assert.equal(demo.code, 0, demo.stderr);
+  assert.equal('interviewChannel' in JSON.parse(demo.stdout), false);
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(demo.stdout), interviewChannel: 'browser_video' }));
+  await rejectsBeforeRequest(f, ['interviews', 'settings', 'set', 'demo-1', '--file', file]);
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(demo.stdout), interviewChannel: 'bogus' }));
+  await rejectsBeforeRequest(f, ['interviews', 'settings', 'set', 'template-1', '--kind', 'story_template', '--file', file]);
 });
 
 test('interview list and provider reads retain explicit kind, pagination and channel', async t => {
@@ -485,6 +510,11 @@ test('template starters, product, duration and channel are forwarded without req
   const created = await f.run(['story-templates', 'create', '--starter', 'roi-stories', '--product', 'Pointed', '--interview-length', 'quick', '--interview-channel', 'phone', '--title', 'Custom ROI title']);
   assert.equal(created.code, 0, created.stderr);
   assert.deepEqual(f.requests.at(-1).body, { starter: 'roi-stories', productName: 'Pointed', interviewLength: 'quick', interviewChannel: 'phone', title: 'Custom ROI title' });
+  for (const channel of ['browser_video', 'participant_choice']) {
+    const video = await f.run(['story-templates', 'create', '--starter', 'roi-stories', '--interview-channel', channel]);
+    assert.equal(video.code, 0, video.stderr);
+    assert.equal(f.requests.at(-1).body.interviewChannel, channel);
+  }
   const custom = await f.run(['story-templates', 'create', '--title', 'Renewal', '--goal', 'Learn what changed']);
   assert.equal(custom.code, 0, custom.stderr);
   assert.deepEqual(f.requests.at(-1).body, { title: 'Renewal', goal: 'Learn what changed' });
