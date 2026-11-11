@@ -1,6 +1,11 @@
 import { Command } from "commander";
 import { basename } from "node:path";
-import { createPrivateExportDirectory, exportFilePath, writePrivateExport as writeFile } from "../lib/private-files.js";
+import { createPrivateExportDirectory, exportFilePath, writePrivateMedia, writePrivateExport as writeFile } from "../lib/private-files.js";
+import {
+  selectResponseMediaDownloads,
+  type CliRoundVideoDownload,
+  type CliSegmentVideoDownload as ResponseSegmentDownload,
+} from "../lib/response-downloads.js";
 import { apiRequest } from "../lib/api-client.js";
 import { printJson, printError, printSuccess, printWarning } from "../lib/output.js";
 import { encodeId } from "../lib/validation.js";
@@ -43,6 +48,7 @@ interface ExportResponseBundle {
     status: string;
   };
   rounds: ExportRound[];
+  media?: { version: string };
   insights: {
     available: boolean;
     executiveSummary: string | null;
@@ -63,24 +69,21 @@ interface ExportResponseBundle {
   };
 }
 
-interface ResponseVideoDownload {
-  roundNumber: number;
-  fileName: string;
-  url: string | null;
-  status: "ready" | "preparing" | "unavailable";
-  reason: string | null;
-}
-
 interface ResponseExportDownloadPayload {
   bundle: ExportResponseBundle;
   downloads: {
     bundleFileName: string;
-    videos: ResponseVideoDownload[];
+    videos: CliRoundVideoDownload[];
+    segments?: ResponseSegmentDownload[];
+    participantVideo?: Omit<CliRoundVideoDownload, "roundNumber">;
   };
 }
 
 interface VideoExportOutcome {
-  roundNumber: number;
+  roundNumber?: number;
+  segmentId?: string;
+  sequence?: number;
+  kind?: "participant_video";
   fileName: string;
   status: "downloaded" | "preparing" | "unavailable" | "failed";
   reason: string | null;
@@ -140,8 +143,8 @@ async function downloadVideoFile(outputPath: string, url: string): Promise<void>
     throw new Error(`Video download failed with status ${response.status}`);
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  await writeFile(outputPath, buffer);
+  if (!response.body) throw new Error("Video download has no body");
+  await writePrivateMedia(outputPath, response.body);
 }
 
 async function writeResponseBundle(
@@ -192,43 +195,30 @@ async function writeResponseBundle(
   const warnings = [...bundle.manifest.processingWarnings];
   const videoDownloads: VideoExportOutcome[] = [];
   let failedDownloads = 0;
-  for (const video of downloads.videos) {
-    if (video.status !== "ready" || !video.url) {
-      const reason = video.reason ?? "video download unavailable";
-      warnings.push(`Round ${video.roundNumber}: ${reason}`);
-      videoDownloads.push({
-        roundNumber: video.roundNumber,
-        fileName: video.fileName,
-        status: video.status === "preparing" ? "preparing" : "unavailable",
-        reason,
-      });
-      continue;
-    }
-
-    try {
-      // Keep the local outcome manifest available even if the API supplies a
-      // colliding video name (including on case-insensitive file systems).
-      if (video.fileName.toLowerCase() === "manifest.json") {
-        throw new Error("Video file name conflicts with manifest.json");
+  for (const media of selectResponseMediaDownloads(bundle.media?.version, downloads)) {
+    let outcome: VideoExportOutcome["status"];
+    let reason: string | null = null;
+    if (media.status !== "ready" || !media.url) {
+      outcome = media.status === "preparing" ? "preparing" : "unavailable";
+      reason = media.reason ?? "video download unavailable";
+    } else {
+      try {
+        if (media.fileName.toLowerCase() === "manifest.json") {
+          throw new Error("Video file name conflicts with manifest.json");
+        }
+        await downloadVideoFile(exportFilePath(responseDir, media.fileName), media.url);
+        outcome = "downloaded";
+      } catch (error) {
+        outcome = "failed";
+        reason = error instanceof Error ? error.message : "video download failed";
+        failedDownloads += 1;
       }
-      await downloadVideoFile(exportFilePath(responseDir, video.fileName), video.url);
-      videoDownloads.push({
-        roundNumber: video.roundNumber,
-        fileName: video.fileName,
-        status: "downloaded",
-        reason: null,
-      });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "video download failed";
-      warnings.push(`Round ${video.roundNumber}: ${reason}`);
-      failedDownloads += 1;
-      videoDownloads.push({
-        roundNumber: video.roundNumber,
-        fileName: video.fileName,
-        status: "failed",
-        reason,
-      });
     }
+    if (reason) warnings.push(`${media.label}: ${reason}`);
+    const identity = "roundNumber" in media ? { roundNumber: media.roundNumber }
+      : "segmentId" in media ? { segmentId: media.segmentId, sequence: media.sequence }
+      : { kind: media.kind };
+    videoDownloads.push({ ...identity, fileName: media.fileName, status: outcome, reason });
   }
 
   const finalWarnings = [...new Set(warnings)];

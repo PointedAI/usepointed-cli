@@ -21,7 +21,7 @@ function bundle(id) {
   };
 }
 
-async function fixture(t, { ids = ['response-1'], failures = {}, videos = [], videoFailure } = {}) {
+async function fixture(t, { ids = ['response-1'], failures = {}, videos = [], participantVideo, videoFailure } = {}) {
   const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pointed-response-test-')));
   fs.chmodSync(home, 0o700);
   const output = path.join(home, 'exports');
@@ -34,6 +34,11 @@ async function fixture(t, { ids = ['response-1'], failures = {}, videos = [], vi
     if (url.pathname === '/video') {
       if (videoFailure === 'network') { res.destroy(); return; }
       res.writeHead(videoFailure === 'http' ? 503 : 200, { 'content-type': 'video/mp4' });
+      if (videoFailure === 'interrupted') {
+        res.write('partial media');
+        setTimeout(() => res.destroy(), 20);
+        return;
+      }
       res.end('video bytes');
       return;
     }
@@ -44,7 +49,8 @@ async function fixture(t, { ids = ['response-1'], failures = {}, videos = [], vi
     else if (failure === 'missing') res.end(JSON.stringify({ data: null }));
     else if (id) res.end(JSON.stringify({ data: {
       bundle: bundles.find(entry => entry.response._id === id),
-      downloads: { videos: videos.map(video => ({ url: `${base}/video`, reason: null, ...video })) },
+      downloads: { videos: videos.map(video => ({ url: `${base}/video`, reason: null, ...video })),
+        ...(participantVideo ? { participantVideo: { url: `${base}/video?token=private`, reason: null, ...participantVideo } } : {}) },
     } }));
     else res.end(JSON.stringify({ data: { campaign: bundles[0].campaign, totalResponses: bundles.length, responses: bundles } }));
   });
@@ -199,4 +205,46 @@ test('API-derived malicious response IDs cannot redirect campaign detail request
   const saved = manifest(onlyDirectory(f.output));
   assert.equal(saved.responses[0].responseId, maliciousId);
   assert.equal(saved.responses[0].status, 'failed');
+});
+
+test('participant recordings are private whole-interview files with independent, URL-free outcomes', async t => {
+  for (const [status, reason] of [['ready', null], ['preparing', 'Processing recording'], ['unavailable', 'Camera not saved']]) {
+    const fileName = 'response-customer-1970-01-01-participant.mp4';
+    const f = await fixture(t, {
+      videos: [{ roundNumber: 1, fileName: 'round.mp4', status: 'preparing', reason: 'Processing round' }],
+      participantVideo: { fileName, status, reason },
+    });
+    const result = await f.run('response-1');
+    assert.equal(result.code, 0, result.stderr);
+    const directory = onlyDirectory(f.output);
+    const saved = manifest(directory);
+    assert.equal(saved.videoDownloads[0].roundNumber, 1);
+    assert.deepEqual(saved.videoDownloads[1], { kind: 'participant_video', fileName, status: status === 'ready' ? 'downloaded' : status, reason });
+    assert.doesNotMatch(JSON.stringify(saved), /token=|localhost|127\.0\.0\.1/);
+    const file = path.join(directory, fileName);
+    assert.equal(fs.existsSync(file), status === 'ready');
+    assert.equal(f.requests.filter(p => p === '/video').length, status === 'ready' ? 1 : 0);
+    if (status === 'ready') {
+      assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+      assert.equal(fs.readFileSync(file, 'utf8'), 'video bytes');
+    } else {
+      assert.ok(saved.processingWarnings.includes(`Participant video: ${reason}`));
+    }
+  }
+});
+
+test('a failed camera download preserves transcripts, cleans partial media, and fails the campaign manifest', async t => {
+  for (const [fileName, videoFailure] of [['../outside.mp4'], ['manifest.json'], ['participant.mp4', 'interrupted']]) {
+    const f = await fixture(t, { participantVideo: { fileName, status: 'ready' }, videoFailure });
+    const result = await f.run();
+    assert.equal(result.code, 1, result.stderr);
+    const campaign = onlyDirectory(f.output), directory = onlyDirectory(campaign);
+    assert.equal(manifest(campaign).responses[0].status, 'partial');
+    const saved = manifest(directory);
+    assert.equal(saved.videoDownloads[0].kind, 'participant_video');
+    assert.equal(saved.videoDownloads[0].status, 'failed');
+    assert.equal(fs.existsSync(path.join(campaign, 'outside.mp4')), false);
+    assert.equal(fs.existsSync(path.join(directory, 'participant.mp4')), false);
+    assert.ok(fs.existsSync(path.join(directory, 'round-1-transcript.txt')));
+  }
 });

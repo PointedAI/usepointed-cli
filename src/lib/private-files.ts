@@ -1,3 +1,4 @@
+import { pipeline } from "node:stream/promises";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -153,4 +154,20 @@ export function writePrivateExport(file: string, value: string | Uint8Array): vo
   const fd = fs.openSync(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
   try { fs.fchmodSync(fd, 0o600); assertPrivateFile(fs.fstatSync(fd)); fs.writeFileSync(fd, value); }
   finally { fs.closeSync(fd); }
+}
+
+/** Stream large recordings to a new private file and remove incomplete downloads. */
+export async function writePrivateMedia(file: string, body: NonNullable<Response["body"]>): Promise<void> {
+  const directory = verifiedDirectory(path.dirname(file), false, true);
+  if (!directory) throw new Error("Export directory no longer exists.");
+  file = path.join(directory, path.basename(file));
+  const fd = await fs.promises.open(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+  try {
+    await pipeline(body, fd.createWriteStream());
+  } catch (error) {
+    await fs.promises.unlink(file);
+    throw error;
+  } finally {
+    await fd.close();
+  }
 }

@@ -4,6 +4,8 @@ import { encodeId } from "../lib/validation.js";
 import { ApiError, apiRequest } from "../lib/api-client.js";
 import { printError, printJson } from "../lib/output.js";
 
+const interviewChannels = ["phone", "browser_audio", "browser_video", "participant_choice"] as const;
+type InterviewChannel = typeof interviewChannels[number];
 type Kind = "demo" | "story_template";
 const kindOption = () => new Option("--kind <kind>", "Settings target type").choices(["demo", "story_template"]).default("demo");
 const settingsPath = (kind: Kind, id: string) => `/interview-settings/${kind}/${encodeId(id)}`;
@@ -29,10 +31,11 @@ export function createInterviewsCommand(): Command {
   settings.command("get").argument("<id>", "ID returned by settings list").addOption(kindOption())
     .description("Read an editable JSON file accepted by settings set")
     .action((id: string, options: { kind: Kind }) => output(async () => {
-      const result = await apiRequest<{ revision: number; openingQuestion: string; context: string; instructions: string; elevenLabsSettingsJson: string }>("GET", settingsPath(options.kind, id));
+      const result = await apiRequest<{ revision: number; openingQuestion: string; context: string; instructions: string; elevenLabsSettingsJson: string; interviewChannel?: InterviewChannel | null }>("GET", settingsPath(options.kind, id));
       if (!result.data) throw new Error("Interview settings are unavailable");
-      const { revision, openingQuestion, context, instructions, elevenLabsSettingsJson } = result.data;
-      return { expectedRevision: revision, openingQuestion, context, instructions, elevenLabsSettingsJson };
+      const { revision, openingQuestion, context, instructions, elevenLabsSettingsJson, interviewChannel } = result.data;
+      return { expectedRevision: revision, openingQuestion, context, instructions, elevenLabsSettingsJson,
+        ...(options.kind === "story_template" ? { interviewChannel } : {}) };
     }));
   settings.command("provider").addOption(kindOption()).requiredOption("--id <id>", "ID returned by settings list")
     .addOption(new Option("--channel <channel>", "Read the saved provider for this channel").choices(["browser_audio", "phone"]).makeOptionMandatory())
@@ -47,10 +50,12 @@ export function createInterviewsCommand(): Command {
       if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Settings file must contain a JSON object");
       const input = body as Record<string, unknown>;
       const fields = ["expectedRevision", "openingQuestion", "context", "instructions", "elevenLabsSettingsJson"];
+      if (options.kind === "story_template") fields.push("interviewChannel");
       if (Object.keys(input).some(key => !fields.includes(key)) || !Number.isSafeInteger(input["expectedRevision"]) || Number(input["expectedRevision"]) < 0 ||
           ["openingQuestion", "context", "instructions"].some(key => typeof input[key] !== "string") ||
-          (input["elevenLabsSettingsJson"] !== undefined && typeof input["elevenLabsSettingsJson"] !== "string"))
-        throw new Error("Use the settings get JSON with expectedRevision, openingQuestion, context, instructions and optional elevenLabsSettingsJson");
+          (input["elevenLabsSettingsJson"] !== undefined && typeof input["elevenLabsSettingsJson"] !== "string") ||
+          (input["interviewChannel"] != null && !interviewChannels.some(channel => channel === input["interviewChannel"])))
+        throw new Error("Use the settings get JSON with expectedRevision, openingQuestion, context, instructions and optional elevenLabsSettingsJson. Story templates also accept interviewChannel (phone, browser_audio, browser_video, participant_choice or null).");
       return (await apiRequest("PUT", settingsPath(options.kind, id), input)).data;
     }));
   return interviews;

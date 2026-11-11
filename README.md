@@ -213,7 +213,9 @@ pointed interviews settings provider --kind demo --id <targetId> --channel brows
 pointed interviews settings set <targetId> --kind demo --file interview-settings.json
 ```
 
-`settings get` exports `expectedRevision`, `openingQuestion`, `context`, `instructions`, and `elevenLabsSettingsJson`. Advanced JSON uses native ElevenLabs `conversation_config` names. `{}` uses Pointed's standard connection defaults; inspect effective model, voice, turn and other tuning values with `settings provider` before changing them. Use `--channel phone` to inspect phone defaults. Provider credentials, tools, consent and security remain managed by Pointed.
+`settings get` exports `expectedRevision`, `openingQuestion`, `context`, `instructions`, and `elevenLabsSettingsJson`. Advanced JSON uses native ElevenLabs `conversation_config` names. `{}` uses Pointed's standard connection defaults; inspect effective model, voice, turn and other tuning values with `settings provider` before changing them. Use `--channel phone` for phone defaults. Web voice and web video share the `browser_audio` provider settings. Provider credentials, tools, consent and security remain managed by Pointed.
+
+With the 0.5.0 source CLI, template settings files also include `interviewChannel`. Use `browser_video` for a camera interview or `participant_choice` to offer phone, web voice and web video. A saved `null` keeps phone and web voice as the available choices.
 
 Keep `expectedRevision` while editing. A conflict exits with status 1, prints the current revision as JSON, and leaves your file intact. Read the latest settings and reconcile your edits before another save. The CLI does not automatically retry conflicting writes. List results are paginated; continue with `--cursor` until `nextCursor` is null. `--limit` accepts 1–25.
 
