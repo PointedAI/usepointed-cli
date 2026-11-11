@@ -53,7 +53,7 @@ async function api(t, response) {
 function bundle() {
   return {
     exportVersion: 1, exportedAt: '2026-10-02',
-    response: { _id: 'response-1', createdAt: 0, status: 'completed', currentRound: 1, aiSummary: 'Private summary', sentimentScore: 1, completedAt: 1 },
+    response: { _id: 'response-1', createdAt: 0, status: 'completed', currentRound: 1, aiSummary: 'Private summary', sentimentScore: 1, sentiment: 'neutral', completedAt: 1 },
     contact: { name: 'Customer', email: 'private@example.com', title: null },
     campaign: { _id: 'campaign-1', title: 'Campaign', description: null, initialQuestion: 'Private question', maxRounds: 1, status: 'completed' },
     rounds: [{ roundNumber: 1, questionText: 'Private question', transcript: 'Private transcript' }],
@@ -97,6 +97,9 @@ test('single and campaign exports are private under a permissive umask and never
   const entries = fs.readdirSync(f.output);
   assert.equal(entries.length, 3);
   const responseDir = path.join(f.output, entries.find(name => name.startsWith('response-')));
+  const saved = JSON.parse(fs.readFileSync(path.join(responseDir, 'response.json'), 'utf8'));
+  assert.equal(saved.response.sentiment, 'neutral');
+  assert.equal(saved.response.sentimentScore, 1);
   assert.equal(fs.readFileSync(path.join(responseDir, 'ai-summary.txt'), 'utf8'), 'Private summary');
   assert.ok(fs.existsSync(path.join(responseDir, 'round-1.mp4')));
 });

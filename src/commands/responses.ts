@@ -25,6 +25,7 @@ interface ExportResponseBundle {
     currentRound: number;
     aiSummary: string | null;
     sentimentScore: number | null;
+    sentiment?: "positive" | "neutral" | "negative" | null;
     createdAt: number;
     completedAt: number | null;
   };

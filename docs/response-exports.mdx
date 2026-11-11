@@ -3,6 +3,12 @@ title: Response exports
 description: Download response data, transcripts, media, summaries, and manifests.
 ---
 
+## Review an interview in Results
+
+Open **Results** and search a transcript, or filter the interviews by template or account. Choose **View** to read one interview’s summary, quotes and transcript. Select a quote to jump to its question. For a continuous recording, open the full interview page to use the recording timeline.
+
+Use **Share** to copy a link for someone with access to the workspace. **Download transcript** saves a plain-text copy. For the full export, including available media and the manifest, use the CLI commands below. Where the workspace agent is enabled, **AI insights** opens a conversation about evidence across multiple interviews.
+
 ## List responses
 
 ```bash
@@ -58,6 +64,8 @@ Full campaign:
 ```
 
 Every run creates a new private export directory and preserves previous exports.
+
+In `response.json`, `response.sentiment` is the interview’s displayed label (`positive`, `neutral` or `negative`). New summaries can supply the label directly. Older scored interviews derive it from `response.sentimentScore`, which remains on its original −1 to +1 scale. An interview without either value exports a null label. Files downloaded before this field was introduced can omit it.
 
 Each response's `manifest.json` includes final `processingWarnings` and a `videoDownloads` entry for each asset, with its filename, download status, and any failure reason. These reflect the download attempt, including network and file errors, rather than only the API's initial processing state.
 
