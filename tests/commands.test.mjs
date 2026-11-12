@@ -328,7 +328,7 @@ test('template settings keep legacy, single-channel and participant-choice selec
   const f = await fixture(t);
   const base = { revision: 4, openingQuestion: 'How was it?', context: '', instructions: '', elevenLabsSettingsJson: '{}' };
   const file = path.join(f.home, 'settings.json');
-  for (const channel of [null, 'browser_audio', 'phone', 'participant_choice', undefined]) {
+  for (const channel of [null, 'browser', 'browser_audio', 'browser_video', 'phone', 'participant_choice', undefined]) {
     f.respond({ ...base, interviewChannel: channel });
     const result = await f.run(['interviews', 'settings', 'get', 'template-1', '--kind', 'story_template']);
     assert.equal(result.code, 0, result.stderr);
@@ -510,7 +510,7 @@ test('template starters, product, duration and channel are forwarded without req
   const created = await f.run(['story-templates', 'create', '--starter', 'roi-stories', '--product', 'Pointed', '--interview-length', 'quick', '--interview-channel', 'phone', '--title', 'Custom ROI title']);
   assert.equal(created.code, 0, created.stderr);
   assert.deepEqual(f.requests.at(-1).body, { starter: 'roi-stories', productName: 'Pointed', interviewLength: 'quick', interviewChannel: 'phone', title: 'Custom ROI title' });
-  for (const channel of ['browser_video', 'participant_choice']) {
+  for (const channel of ['browser', 'browser_video', 'participant_choice']) {
     const video = await f.run(['story-templates', 'create', '--starter', 'roi-stories', '--interview-channel', channel]);
     assert.equal(video.code, 0, video.stderr);
     assert.equal(f.requests.at(-1).body.interviewChannel, channel);
@@ -520,6 +520,16 @@ test('template starters, product, duration and channel are forwarded without req
   assert.deepEqual(f.requests.at(-1).body, { title: 'Renewal', goal: 'Learn what changed' });
   for (const extra of [[], ['--starter', 'roi-stories', '--max-rounds', '2garbage'], ['--starter', 'roi-stories', '--interview-length', 'long'], ['--starter', 'roi-stories', '--interview-channel', 'fallback']]) {
     await rejectsBeforeRequest(f, ['story-templates', 'create', ...extra]);
+  }
+});
+
+test('create and update send the participant-facing topic independently of the internal goal', async t => {
+  const f = await fixture(t);
+  for (const args of [['create', '--starter', 'roi-stories'], ['update', 'template-1']]) {
+    const result = await f.run(['story-templates', ...args, '--customer-facing-topic', 'how onboarding went']);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(f.requests.at(-1).body.customerFacingTopic, 'how onboarding went');
+    assert.equal('goal' in f.requests.at(-1).body, false);
   }
 });
 

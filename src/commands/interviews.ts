@@ -1,11 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { Command, Option } from "commander";
-import { encodeId } from "../lib/validation.js";
+import { encodeId, interviewChannels, type InterviewChannel } from "../lib/validation.js";
 import { ApiError, apiRequest } from "../lib/api-client.js";
 import { printError, printJson } from "../lib/output.js";
 
-const interviewChannels = ["phone", "browser_audio", "browser_video", "participant_choice"] as const;
-type InterviewChannel = typeof interviewChannels[number];
 type Kind = "demo" | "story_template";
 const kindOption = () => new Option("--kind <kind>", "Settings target type").choices(["demo", "story_template"]).default("demo");
 const settingsPath = (kind: Kind, id: string) => `/interview-settings/${kind}/${encodeId(id)}`;
@@ -55,7 +53,7 @@ export function createInterviewsCommand(): Command {
           ["openingQuestion", "context", "instructions"].some(key => typeof input[key] !== "string") ||
           (input["elevenLabsSettingsJson"] !== undefined && typeof input["elevenLabsSettingsJson"] !== "string") ||
           (input["interviewChannel"] != null && !interviewChannels.some(channel => channel === input["interviewChannel"])))
-        throw new Error("Use the settings get JSON with expectedRevision, openingQuestion, context, instructions and optional elevenLabsSettingsJson. Story templates also accept interviewChannel (phone, browser_audio, browser_video, participant_choice or null).");
+        throw new Error("Use the settings get JSON with expectedRevision, openingQuestion, context, instructions and optional elevenLabsSettingsJson. Story templates also accept interviewChannel (phone, browser, browser_audio, browser_video, participant_choice or null).");
       return (await apiRequest("PUT", settingsPath(options.kind, id), input)).data;
     }));
   return interviews;

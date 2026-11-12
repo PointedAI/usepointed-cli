@@ -4,6 +4,8 @@ import { apiRequest } from "../lib/api-client.js";
 import { printJson, printError } from "../lib/output.js";
 import {
   encodeId,
+  interviewChannels,
+  type InterviewChannel,
   parseContactSelector,
   parsePositiveInteger,
 } from "../lib/validation.js";
@@ -111,11 +113,12 @@ export function createStoryTemplatesCommand(): Command {
     .option("--product-name <name>", "The product the interview is about (used in the opening)")
     .option("--product <name>", "Same as --product-name")
     .option("--customer-facing-name <name>", "Name shown to customers")
+    .option("--customer-facing-topic <topic>", "What the invitation asks participants about")
     .option("--role <role>", "Target respondent role (default: Account stakeholder)")
     .option("--initial-question <question>", "Opening interview question")
     .option("--description <description>", "Interview template description")
     .option("--max-rounds <rounds>", "Maximum interview rounds", parsePositiveInteger)
-    .addOption(new Option("--interview-channel <channel>", "Participant interview type").choices(["phone", "browser_audio", "browser_video", "participant_choice"]))
+    .addOption(new Option("--interview-channel <channel>", "Participant interview type").choices(interviewChannels))
     .addOption(new Option("--interview-length <length>", "Interview length: quick (2–3 min), standard (4–6), deep (7–10)").choices(["quick", "standard", "deep"]))
     .action(
       async (options: {
@@ -123,13 +126,14 @@ export function createStoryTemplatesCommand(): Command {
         title?: string;
         goal?: string;
         customerFacingName?: string;
+        customerFacingTopic?: string;
         productName?: string;
         product?: string;
         role?: string;
         initialQuestion?: string;
         description?: string;
         maxRounds?: number;
-        interviewChannel?: "phone" | "browser_audio" | "browser_video" | "participant_choice";
+        interviewChannel?: InterviewChannel;
         interviewLength?: "quick" | "standard" | "deep";
       }) => {
         try {
@@ -140,6 +144,7 @@ export function createStoryTemplatesCommand(): Command {
             starter: options.starter,
             title: options.title,
             customerFacingName: options.customerFacingName,
+            customerFacingTopic: options.customerFacingTopic,
             productName: options.productName ?? options.product,
             role: options.role,
             goal: options.goal,
@@ -180,6 +185,7 @@ export function createStoryTemplatesCommand(): Command {
     .argument("<id>", "Story template ID")
     .option("--title <title>", "Story template title")
     .option("--customer-facing-name <name>", "Name shown to customers")
+    .option("--customer-facing-topic <topic>", "What the invitation asks participants about")
     .option("--role <role>", "Target respondent role")
     .option("--goal <goal>", "Story collection goal")
     .option("--initial-question <question>", "Opening survey question")
@@ -193,6 +199,7 @@ export function createStoryTemplatesCommand(): Command {
         options: {
           title?: string;
           customerFacingName?: string;
+          customerFacingTopic?: string;
           role?: string;
           goal?: string;
           initialQuestion?: string;
@@ -207,6 +214,9 @@ export function createStoryTemplatesCommand(): Command {
           if (options.title !== undefined) body["title"] = options.title;
           if (options.customerFacingName !== undefined) {
             body["customerFacingName"] = options.customerFacingName;
+          }
+          if (options.customerFacingTopic !== undefined) {
+            body["customerFacingTopic"] = options.customerFacingTopic;
           }
           if (options.role !== undefined) body["role"] = options.role;
           if (options.goal !== undefined) body["goal"] = options.goal;
