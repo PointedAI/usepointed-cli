@@ -1,5 +1,8 @@
 import { InvalidArgumentError } from "commander";
 
+export const interviewChannels = ["phone", "browser", "browser_audio", "browser_video", "participant_choice"] as const;
+export type InterviewChannel = typeof interviewChannels[number];
+
 /** Keep an opaque ID within one URL segment, including after URL normalization. */
 export function encodeId(value: string): string {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) {
