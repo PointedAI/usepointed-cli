@@ -14,7 +14,7 @@ Use macOS or Linux and Node.js 20 or newer. Node.js 22 is recommended for reposi
 
 You need an existing Pointed account with workspace access. New users can [request access](https://usepointed.ai/contact?reason=general); installing the CLI does not create an account. Start with the [quickstart](https://docs.usepointed.ai/docs/quickstart) for a complete first run.
 
-**Source availability:** this branch is preparing 0.5.0. The new spreadsheet imports, account/context fields, contact phones and template shortcuts below are not yet on npm; the latest published version is 0.4.0. Run from source to use them now.
+**Version 0.5.0:** spreadsheet imports, account/context fields, contact phones, template shortcuts and participant recording downloads are available in the npm package. Update an older installation with `npm install -g @pointed/cli@latest`.
 
 During development from this repository:
 
@@ -83,7 +83,7 @@ pointed responses list --campaign-id <campaignId>
 pointed responses download --campaign-id <campaignId> --output-dir ./pointed-export
 ```
 
-## Spreadsheet to interviews (0.5.0 source)
+## Spreadsheet to interviews (0.5.0+)
 
 ```bash
 pointed story-templates starters
@@ -215,7 +215,7 @@ pointed interviews settings set <targetId> --kind demo --file interview-settings
 
 `settings get` exports `expectedRevision`, `openingQuestion`, `context`, `instructions`, and `elevenLabsSettingsJson`. Advanced JSON uses native ElevenLabs `conversation_config` names. `{}` uses Pointed's standard connection defaults; inspect effective model, voice, turn and other tuning values with `settings provider` before changing them. Use `--channel phone` for phone defaults. Web voice and web video share the `browser_audio` provider settings. Provider credentials, tools, consent and security remain managed by Pointed.
 
-With the 0.5.0 source CLI, template settings files also include `interviewChannel`. Use `browser` for a web interview with an optional camera, `browser_video` to require camera consent, or `browser_audio` for voice only. Choose `phone` for phone only or `participant_choice` to offer phone and web with an optional camera. A saved `null` preserves the older phone and web voice choices.
+With CLI version 0.5.0 or later, template settings files also include `interviewChannel`. Use `browser` for a web interview with an optional camera, `browser_video` to require camera consent, or `browser_audio` for voice only. Choose `phone` for phone only or `participant_choice` to offer phone and web with an optional camera. A saved `null` preserves the older phone and web voice choices.
 
 Keep `expectedRevision` while editing. A conflict exits with status 1, prints the current revision as JSON, and leaves your file intact. Read the latest settings and reconcile your edits before another save. The CLI does not automatically retry conflicting writes. List results are paginated; continue with `--cursor` until `nextCursor` is null. `--limit` accepts 1–25.
 
@@ -235,4 +235,4 @@ pointed admin demos voice-settings set <definitionId> --file phone-settings.json
 Use `--channel browser_audio` for browser voice. The editable envelope contains `channel`, `expectedRevision`, and `configuration`, including `elevenLabsSettingsJson`. Blank connection identifiers resolve to the standard Pointed connection on the server. The server rechecks current platform-admin authority before committing a save. These commands configure voice channels independently of the founder text-interview engine and do not initiate a call.
 
 
-When enrolling accounts, omit auto-include flags to inherit the template default for new enrollments (existing enrollments keep their choice). Use `--auto-include-new-contacts` or `--no-auto-include-new-contacts` for an explicit choice. The opt-out flag is in the upcoming 0.5.0 source version. A template-wide auto-add change in the app replaces all enrolled accounts' choices; auto-add prepares interviews without sending them. See the [template guide](https://docs.usepointed.ai/docs/story-templates).
+When enrolling accounts, omit auto-include flags to inherit the template default for new enrollments (existing enrollments keep their choice). Use `--auto-include-new-contacts` or `--no-auto-include-new-contacts` for an explicit choice. The opt-out flag requires CLI version 0.5.0 or later. A template-wide auto-add change in the app replaces all enrolled accounts' choices; auto-add prepares interviews without sending them. See the [template guide](https://docs.usepointed.ai/docs/story-templates).
