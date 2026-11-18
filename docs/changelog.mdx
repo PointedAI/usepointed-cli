@@ -3,7 +3,7 @@ title: Changelog
 description: Published Pointed CLI releases and the source changes included in them.
 ---
 
-## 0.5.0 — Unreleased source
+## 0.5.0 — November 17, 2026
 
 - CSV/TSV account and contact imports with dry runs, company matching, phone fields, and optional template enrollment.
 - Account domains, revenue aliases, renewal dates, custom fields, clearing and interviewer context. Context failures retain the saved account and exit nonzero.
@@ -12,7 +12,9 @@ description: Published Pointed CLI releases and the source changes included in t
 - Interview-template starters, product, channel and length options; whole-account enrollment with mutually exclusive scopes.
 - Opaque IDs, strict numeric parsing, empty-selector guards and complete failure output are preserved. Partial import or enrollment failures print the full JSON result and exit with status 1.
 
-These features have not been published to npm. Use [Run from source](/docs/installation#run-from-source); npm latest remains 0.4.0.
+[npm package](https://www.npmjs.com/package/@pointed/cli/v/0.5.0) · [GitHub release](https://github.com/PointedAI/usepointed-cli/releases/tag/v0.5.0)
+
+Update with `npm install -g @pointed/cli@latest`.
 
 ## 0.4.0 — November 6, 2026
 
@@ -57,4 +59,4 @@ Initial 0.1.0 source preparation included the core collection commands, story te
 
 ## Template enrollment defaults and status tracking
 
-The upcoming 0.5.0 source CLI adds `--no-auto-include-new-contacts` for explicit opt-out during enrollment. The public guides now explain template defaults, account overrides, unsent auto-add invitations, settings review and the app's status groups. npm publication remains 0.4.0.
+CLI version 0.5.0 adds `--no-auto-include-new-contacts` for explicit opt-out during enrollment. The public guides now explain template defaults, account overrides, unsent auto-add invitations, settings review and the app's status groups.

@@ -81,7 +81,7 @@ Every run creates a new private export directory and preserves previous exports.
 
 In `response.json`, `response.sentiment` is the interview’s displayed label (`positive`, `neutral` or `negative`). New summaries can supply the label directly. Older scored interviews derive it from `response.sentimentScore`, which remains on its original −1 to +1 scale. An interview without either value exports a null label. Files downloaded before this field was introduced can omit it.
 
-In the 0.5.0 source CLI, a web video interview includes one `*-participant.mp4` when the full recording is ready. The corresponding `videoDownloads` entry has `kind: "participant_video"`. A recording that is still preparing has no local file. Run the download again after processing finishes. The latest npm release (0.4.0) supports round videos. [Run the current CLI from source](/docs/installation#run-from-source) to download participant recordings.
+In CLI version 0.5.0 or later, a web video interview includes one `*-participant.mp4` when the full recording is ready. The corresponding `videoDownloads` entry has `kind: "participant_video"`. A recording that is still preparing has no local file. Run the download again after processing finishes. Version 0.4.0 supports round videos. [Update from npm](/docs/installation#update-to-050) to download participant recordings.
 
 Each response's `manifest.json` includes final `processingWarnings` and a `videoDownloads` entry for each asset, with its filename, download status, and any failure reason. These reflect the download attempt, including network and file errors, rather than only the API's initial processing state.
 

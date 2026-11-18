@@ -77,7 +77,7 @@ After a customer responds, [list and export responses](/docs/response-exports). 
 
 ## Import a spreadsheet
 
-The upcoming 0.5.0 source version adds a shorter path from a spreadsheet to interview links:
+CLI version 0.5.0 or later provides a shorter path from a spreadsheet to interview links:
 
 ```bash
 pointed story-templates create --starter roi-stories --product "Your product"
@@ -86,4 +86,4 @@ pointed accounts import customers.csv --enroll <templateId>
 pointed story-templates get <templateId>
 ```
 
-These commands require [running from source](/docs/installation#run-from-source) until 0.5.0 is published to npm. Review the [CSV format and partial results](/docs/account-imports) before importing. Enrollment prepares links and sends no email.
+If you have an older CLI, [update from npm](/docs/installation#update-to-050) first. Review the [CSV format and partial results](/docs/account-imports) before importing. Enrollment prepares links and sends no email.
