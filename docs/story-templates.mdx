@@ -90,7 +90,7 @@ pointed story-templates account <templateId> <accountId>
 pointed story-templates set-auto-include <templateId> <accountId> --enabled false
 ```
 
-`autoIncludeNewContacts` controls whether newly created contacts on an enrolled account receive prepared, unsent interview links. Neither enrollment nor auto-add sends invitations.
+`autoIncludeNewContacts` controls whether newly created contacts on an enrolled account are enrolled automatically. A shareable participant link requires an available interview channel. Neither enrollment nor auto-add sends invitations. With the updated hosted API, `invitesPrepared` counts newly shareable invitations, `invitesAlreadyPrepared` counts existing shareable invitations, and `invitesWithoutLinks` counts enrollments without a usable link. Review the template’s channels if a new enrollment has no link.
 
 ```bash
 pointed story-templates enroll <templateId> --account-id <accountId> --no-auto-include-new-contacts

@@ -7,6 +7,21 @@ description: Core Pointed CLI commands for accounts, contacts, campaigns, links,
   Account import/context, expanded account fields, phone options and template shortcuts require CLI version 0.5.0 or later. [Update from npm](/docs/installation#update-the-cli) to use these commands.
 </Note>
 
+## Workspace, setup and agent
+
+The next CLI release includes the workspace, setup and agent commands. Sign in with `pointed auth login`. Check access and review the available operations before creating a plan.
+
+```bash
+pointed workspace status
+pointed setup capabilities
+pointed setup start --objective "Understand why customers renew"
+pointed setup get TASK_ID
+pointed agent capabilities --search interview
+pointed agent list
+```
+
+If workspace status calls for setup, use `pointed workspace bootstrap --name "My workspace"` to create your workspace or `--clerk-org-id ORG_ID` to select an existing membership. Review the proposal returned by `setup get` before running `pointed setup approve TASK_ID --expected-revision REVISION --plan-digest DIGEST`. Approval applies the reviewed plan. Sending invitations is a separate action. Use `pointed setup --help` and `pointed agent --help` to see update, retry, cancellation and approval commands.
+
 ## Accounts
 
 ```bash
@@ -124,7 +139,7 @@ With CLI version 0.5.0 or later, template settings files also include `interview
 
 Keep `expectedRevision` while editing. A conflict exits with status 1, prints the current revision as JSON, and leaves your file intact. Read the latest settings and reconcile your edits before another save. The CLI does not automatically retry conflicting writes. List results are paginated; continue with `--cursor` until `nextCursor` is null. `--limit` accepts 1–25.
 
-Saving requires a user-backed workspace writer with `pointed:write`. It may provision an isolated provider configuration, but does not send invitations or start calls or recordings. Settings affect future runs; existing invitations retain their frozen configuration.
+Saving requires a user-backed workspace writer with `pointed:write`. It may provision an isolated provider configuration, but does not send invitations or start calls or recordings. By default, edits apply to future interviews. In the next CLI release, `pointed interviews settings pending TEMPLATE_ID --limit 25` lists eligible unstarted interviews. Follow `nextCursor` with `--cursor` to see more. To update a selection, add `"pendingUpdates": [{"inviteId": "INVITE_ID", "expectedRevision": 2}]` to the template settings file using the exact reviewed IDs and revisions. Save with `--kind story_template`. The server skips interviews that started or changed after review. The limit is 100 selections per save.
 
 ### Founder voice settings
 

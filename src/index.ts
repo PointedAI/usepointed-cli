@@ -11,9 +11,11 @@ import { createResponsesCommand } from "./commands/responses.js";
 import { createStoryTemplatesCommand } from "./commands/story-templates.js";
 import { createInvitesCommand } from "./commands/invites.js";
 import { createSmartIntakeCommand } from "./commands/smart-intake.js";
-
 import { createInterviewsCommand } from "./commands/interviews.js";
 import { createAdminCommand } from "./commands/admin.js";
+import { createAgentCommand } from "./commands/agent.js";
+import { createSetupCommand } from "./commands/setup.js";
+import { createWorkspaceCommand } from "./commands/workspace.js";
 
 const program = new Command();
 
@@ -24,6 +26,9 @@ program
   )
   .version("0.5.0");
 
+program.addCommand(createAgentCommand());
+program.addCommand(createSetupCommand());
+program.addCommand(createWorkspaceCommand());
 program.addCommand(createAuthCommand());
 program.addCommand(createConfigCommand());
 program.addCommand(createAccountsCommand());

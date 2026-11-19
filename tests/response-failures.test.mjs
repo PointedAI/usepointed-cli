@@ -21,7 +21,7 @@ function bundle(id) {
   };
 }
 
-async function fixture(t, { ids = ['response-1'], failures = {}, videos = [], participantVideo, videoFailure } = {}) {
+async function fixture(t, { ids = ['response-1'], failures = {}, videos = [], participantVideo, audio, videoFailure } = {}) {
   const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pointed-response-test-')));
   fs.chmodSync(home, 0o700);
   const output = path.join(home, 'exports');
@@ -50,6 +50,7 @@ async function fixture(t, { ids = ['response-1'], failures = {}, videos = [], pa
     else if (id) res.end(JSON.stringify({ data: {
       bundle: bundles.find(entry => entry.response._id === id),
       downloads: { videos: videos.map(video => ({ url: `${base}/video`, reason: null, ...video })),
+        ...(audio ? { audio: { url: `${base}/video?token=audio-secret`, reason: null, ...audio } } : {}),
         ...(participantVideo ? { participantVideo: { url: `${base}/video?token=private`, reason: null, ...participantVideo } } : {}) },
     } }));
     else res.end(JSON.stringify({ data: { campaign: bundles[0].campaign, totalResponses: bundles.length, responses: bundles } }));
@@ -178,15 +179,14 @@ test('preparing and unavailable media remain nonfatal with durable warnings and 
     const f = await fixture(t, { videos: [
       { roundNumber: 1, fileName: 'round-1.mp4', status: 'preparing', reason: 'Media is processing' },
       { roundNumber: 2, fileName: 'round-2.mp4', status: 'unavailable', reason: 'No recording' },
-      { roundNumber: 3, fileName: 'round-3.mp4', status: 'ready', url: null },
       { roundNumber: 4, fileName: 'round-4.mp4', status: 'ready' },
     ] });
     const result = await f.run(single ? 'response-1' : undefined);
     assert.equal(result.code, 0, result.stderr);
     const root = onlyDirectory(f.output), directory = single ? root : onlyDirectory(root);
     const saved = manifest(directory);
-    assert.equal(saved.processingWarnings.length, 3);
-    assert.deepEqual(saved.videoDownloads.map(video => video.status), ['preparing', 'unavailable', 'unavailable', 'downloaded']);
+    assert.equal(saved.processingWarnings.length, 2);
+    assert.deepEqual(saved.videoDownloads.map(video => video.status), ['preparing', 'unavailable', 'downloaded']);
     assert.equal(fs.readFileSync(path.join(directory, 'round-4.mp4'), 'utf8'), 'video bytes');
     assert.equal(f.requests.filter(request => request === '/video').length, 1);
     if (!single) {
@@ -247,4 +247,27 @@ test('a failed camera download preserves transcripts, cleans partial media, and 
     assert.equal(fs.existsSync(path.join(directory, 'participant.mp4')), false);
     assert.ok(fs.existsSync(path.join(directory, 'round-1-transcript.txt')));
   }
+});
+
+test('preparation failures and missing ready URLs produce partial campaign exports', async t => {
+  const f = await fixture(t, { videos: [
+    { roundNumber: 1, fileName: 'first.mp4', status: 'failed', reason: 'Provider preparation failed', url: null },
+    { roundNumber: 2, fileName: 'second.mp4', status: 'ready', url: null },
+  ] });
+  const result = await f.run();
+  assert.equal(result.code, 1);
+  const root = onlyDirectory(f.output);
+  assert.equal(manifest(root).responses[0].status, 'partial');
+  assert.deepEqual(manifest(onlyDirectory(root)).videoDownloads.map(v => v.status), ['failed', 'failed']);
+});
+
+test('downloads a private interview audio file without saving its access URL', async t => {
+  const f = await fixture(t, { audio: { fileName: 'interview.mp3', status: 'ready' } });
+  const result = await f.run('response-1');
+  assert.equal(result.code, 0, result.stderr);
+  const dir = onlyDirectory(f.output);
+  assert.equal(fs.readFileSync(path.join(dir, 'interview.mp3'), 'utf8'), 'video bytes');
+  assert.equal(fs.statSync(path.join(dir, 'interview.mp3')).mode & 0o777, 0o600);
+  assert.deepEqual(manifest(dir).audioDownloads, [{ kind: 'interview_audio', fileName: 'interview.mp3', status: 'downloaded', reason: null }]);
+  for (const name of ['response.json', 'manifest.json']) assert.doesNotMatch(fs.readFileSync(path.join(dir, name), 'utf8'), /audio-secret/);
 });

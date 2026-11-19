@@ -120,7 +120,7 @@ pointed smart-intake commit --session-id <sessionId> \
 
 ## Story Templates
 
-Story templates orchestrate account-level customer story collection. Enrollment prepares survey links; customer email is sent only when you call the invite email commands.
+Story templates orchestrate account-level customer story collection. Enrollment prepares links when an interview channel is available; customer email is sent only when you call the invite email commands.
 
 ```bash
 pointed story-templates create \
@@ -170,7 +170,7 @@ Response downloads create a fresh private directory for each export, with owner-
 
 Account imports print complete results and exit with status 1 for failed account/contact writes or enrollment. Account create/update also exits with status 1 when the separate context write fails, retaining the saved account and `contextError` in JSON.
 
-Contact batches and link generation print their complete results and exit with status 1 if any item fails. Response downloads also exit with status 1 when a response or ready video cannot be exported, while preserving completed files. Export manifests record the final download outcomes; media still preparing or unavailable remains a warning.
+Contact batches and link generation print their complete results and exit with status 1 if any item fails. Response downloads also exit with status 1 when a response or ready recording cannot be exported, while preserving completed files. Export manifests record the final download outcomes; media still preparing or unavailable remains a warning.
 
 Explicitly empty contact selectors are rejected. Omit both selectors only when you intend to include all account contacts. Contract values accept finite nonnegative numbers without thousands separators; maximum rounds must be a positive integer.
 
@@ -219,7 +219,7 @@ With CLI version 0.5.0 or later, template settings files also include `interview
 
 Keep `expectedRevision` while editing. A conflict exits with status 1, prints the current revision as JSON, and leaves your file intact. Read the latest settings and reconcile your edits before another save. The CLI does not automatically retry conflicting writes. List results are paginated; continue with `--cursor` until `nextCursor` is null. `--limit` accepts 1–25.
 
-Saving requires a user-backed workspace writer with `pointed:write`. It may provision an isolated provider configuration, but does not send invitations or start calls or recordings. Settings affect future runs; existing invitations retain their frozen configuration.
+Saving requires a user-backed workspace writer with `pointed:write`. It may provision an isolated provider configuration, but does not send invitations or start calls or recordings. By default, edits apply to future interviews. In the next CLI release, `pointed interviews settings pending TEMPLATE_ID --limit 25` lists eligible unstarted interviews. Follow `nextCursor` with `--cursor` to see more. To update a selection, add `"pendingUpdates": [{"inviteId": "INVITE_ID", "expectedRevision": 2}]` to the template settings file using the exact reviewed IDs and revisions. Save with `--kind story_template`. The server skips interviews that started or changed after review. The limit is 100 selections per save.
 
 ### Founder voice settings
 
