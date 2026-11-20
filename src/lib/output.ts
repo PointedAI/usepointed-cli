@@ -15,8 +15,8 @@ function terminalData(value: unknown): unknown {
 }
 
 /** JSON values remain unchanged; unsafe Unicode controls use JSON escapes. */
-export function printJson(data: unknown): void {
-  if (getOutputFormat() === "table") {
+export function printJson(data: unknown, format = getOutputFormat()): void {
+  if (format === "table") {
     const safe = terminalData(data);
     if (Array.isArray(safe)) console.table(safe);
     else if (safe && typeof safe === "object") console.table([safe]);

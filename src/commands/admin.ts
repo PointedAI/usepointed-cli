@@ -4,10 +4,10 @@ import { ApiError, apiRequest } from "../lib/api-client.js";
 import { encodeId } from "../lib/validation.js";
 import { printJson, printError } from "../lib/output.js";
 
-async function output(run: () => Promise<unknown>) {
-  try { printJson(await run()); }
+async function output(run: () => Promise<unknown>, format?: "json") {
+  try { printJson(await run(), format); }
   catch (error) {
-    if (error instanceof ApiError && error.status === 409 && error.body.data) printJson(error.body.data);
+    if (error instanceof ApiError && error.status === 409 && error.body.data) printJson(error.body.data, "json");
     printError(error instanceof ApiError && error.status === 409 ? "Settings changed. Read the latest revision and reconcile your edits before retrying." : error instanceof Error ? error.message : "Request failed");
     process.exitCode = 1;
   }
@@ -23,7 +23,7 @@ export function createAdminCommand(): Command {
     .addOption(new Option("--channel <channel>", "Native ElevenLabs channel").choices(["browser_audio", "phone"]).makeOptionMandatory())
     .description("Export the current revision and editable native ElevenLabs configuration")
     .action((id: string, options: { channel: string }) => output(async () =>
-      (await apiRequest("GET", `/admin/demos/${encodeId(id)}/voice-settings?kind=founder&channel=${options.channel}`)).data));
+      (await apiRequest("GET", `/admin/demos/${encodeId(id)}/voice-settings?kind=founder&channel=${options.channel}`)).data, "json"));
   settings.command("set").argument("<id>").requiredOption("--file <path>", "Edited JSON from voice-settings get")
     .action((id: string, options: { file: string }) => output(async () => {
       const target = encodeId(id);

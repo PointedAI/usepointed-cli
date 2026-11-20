@@ -29,7 +29,7 @@ async function fixture(t) {
     home,
     requests,
     respond(value, statusCode = 200) { result = value; status = statusCode; },
-    run(args) {
+    run(args, format = "json") {
       return new Promise((resolve, reject) => {
         // An isolated home and explicit dummy credentials prevent use of local auth state.
         const child = spawn(process.execPath, [cli, ...args], {
@@ -39,7 +39,7 @@ async function fixture(t) {
             HOME: home,
             POINTED_API_KEY: 'local-fixture-only',
             POINTED_API_URL: `http://127.0.0.1:${server.address().port}`,
-            POINTED_OUTPUT_FORMAT: 'json',
+            POINTED_OUTPUT_FORMAT: format,
           },
         });
         let stdout = '', stderr = '';
@@ -310,7 +310,7 @@ test('interview settings round-trip the revision and exact native JSON without e
   const settings = { revision: 7, openingQuestion: 'What changed?', context: 'Product context', instructions: 'Let people finish.', elevenLabsSettingsJson: native,
     interviewChannel: 'browser_video', target: { kind: 'story_template', id: 'template-1' }, actorId: 'private-internal-actor', url: 'https://app.usepointed.ai/dashboard' };
   f.respond(settings);
-  const fetched = await f.run(['interviews', 'settings', 'get', 'template-1', '--kind', 'story_template']);
+  const fetched = await f.run(['interviews', 'settings', 'get', 'template-1', '--kind', 'story_template'], 'table');
   assert.equal(fetched.code, 0, fetched.stderr);
   const editable = JSON.parse(fetched.stdout);
   assert.deepEqual(editable, { expectedRevision: 7, openingQuestion: settings.openingQuestion, context: settings.context, instructions: settings.instructions, elevenLabsSettingsJson: native, interviewChannel: 'browser_video' });
@@ -372,7 +372,7 @@ test('founder native voice settings use the admin endpoint without selecting an 
   const f = await fixture(t);
   const settings = { channel: 'phone', expectedRevision: 3, configuration: { enabled: true, agentId: '', agentPhoneNumberId: '', voiceId: '', elevenLabsSettingsJson: '{}' } };
   f.respond(settings);
-  const fetched = await f.run(['admin', 'demos', 'voice-settings', 'get', 'definition-1', '--channel', 'phone']);
+  const fetched = await f.run(['admin', 'demos', 'voice-settings', 'get', 'definition-1', '--channel', 'phone'], 'table');
   assert.equal(fetched.code, 0, fetched.stderr);
   assert.equal(f.requests.at(-1).url, '/api/cli/v1/admin/demos/definition-1/voice-settings?kind=founder&channel=phone');
   const file = path.join(f.home, 'voice-settings.json');
@@ -393,7 +393,7 @@ test('settings conflicts retain the current revision in JSON and never retry aut
     fs.writeFileSync(file, JSON.stringify(body));
     f.respond({ status: 'conflict', revision: 9 }, 409);
     const count = f.requests.length;
-    const result = await f.run([...command, '--file', file]);
+    const result = await f.run([...command, '--file', file], 'table');
     assert.equal(result.code, 1);
     assert.deepEqual(JSON.parse(result.stdout), { status: 'conflict', revision: 9 });
     assert.match(result.stderr, /reconcile/);
@@ -574,4 +574,38 @@ test('enrollment distinguishes inherited auto-add from explicit opt-in and opt-o
       }
     }
   }
+});
+
+test('package exposes workspace, setup and agent routes with stable request identity', async t => {
+  const f = await fixture(t);
+  for (const [args, endpoint] of [
+    [['workspace', 'status'], '/workspace/status'],
+    [['setup', 'get', 'task-1'], '/setup/tasks/task-1'],
+    [['agent', 'get', 'session-1'], '/agent?sessionId=session-1'],
+  ]) {
+    const result = await f.run(args);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(f.requests.at(-1).url, '/api/cli/v1' + endpoint);
+  }
+  const id = '19e2584b-d136-4219-b252-69cb127c1241';
+  const started = await f.run(['setup', 'start', '--objective', 'Learn about renewals', '--request-id', id]);
+  assert.equal(started.code, 0, started.stderr);
+  assert.deepEqual(f.requests.at(-1).body, { objective: 'Learn about renewals', clientRequestId: id });
+});
+
+test('pending settings review submits only selected revision pairs to the template', async t => {
+  const f = await fixture(t);
+  const pending = await f.run(['interviews', 'settings', 'pending', 'template-1', '--limit', '3', '--cursor', 'a+b']);
+  assert.equal(pending.code, 0, pending.stderr);
+  assert.equal(f.requests.at(-1).url, '/api/cli/v1/interview-settings/story_template/template-1/pending-updates?limit=3&cursor=a%2Bb');
+  const file = path.join(f.home, 'settings.json');
+  const settings = { expectedRevision: 3, openingQuestion: 'What changed?', instructions: '', context: '',
+    pendingUpdates: [{ inviteId: 'invite-1', expectedRevision: 2 }] };
+  fs.writeFileSync(file, JSON.stringify(settings));
+  const saved = await f.run(['interviews', 'settings', 'set', 'template-1', '--kind', 'story_template', '--file', file]);
+  assert.equal(saved.code, 0, saved.stderr);
+  assert.deepEqual(f.requests.at(-1).body, settings);
+  await rejectsBeforeRequest(f, ['interviews', 'settings', 'set', 'demo-1', '--file', file]);
+  fs.writeFileSync(file, JSON.stringify({ ...settings, pendingUpdates: [{ inviteId: 'invite-1' }] }));
+  await rejectsBeforeRequest(f, ['interviews', 'settings', 'set', 'template-1', '--kind', 'story_template', '--file', file]);
 });

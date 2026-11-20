@@ -4,8 +4,23 @@ description: Core Pointed CLI commands for accounts, contacts, campaigns, links,
 ---
 
 <Note>
-  Account import/context, expanded account fields, phone options and template shortcuts are in the upcoming 0.5.0 source version. npm currently publishes 0.4.0. [Run from source](/docs/installation#run-from-source) to use the new commands.
+  Account import/context, expanded account fields, phone options and template shortcuts require CLI version 0.5.0 or later. [Update from npm](/docs/installation#update-the-cli) to use these commands.
 </Note>
+
+## Workspace, setup and agent
+
+The next CLI release includes the workspace, setup and agent commands. Sign in with `pointed auth login`. Check access and review the available operations before creating a plan.
+
+```bash
+pointed workspace status
+pointed setup capabilities
+pointed setup start --objective "Understand why customers renew"
+pointed setup get TASK_ID
+pointed agent capabilities --search interview
+pointed agent list
+```
+
+If workspace status calls for setup, use `pointed workspace bootstrap --name "My workspace"` to create your workspace or `--clerk-org-id ORG_ID` to select an existing membership. Review the proposal returned by `setup get` before running `pointed setup approve TASK_ID --expected-revision REVISION --plan-digest DIGEST`. Approval applies the reviewed plan. Sending invitations is a separate action. Use `pointed setup --help` and `pointed agent --help` to see update, retry, cancellation and approval commands.
 
 ## Accounts
 
@@ -120,11 +135,11 @@ pointed interviews settings set <targetId> --kind demo --file interview-settings
 
 `settings get` exports `expectedRevision`, `openingQuestion`, `context`, `instructions`, and `elevenLabsSettingsJson`. Advanced JSON uses native ElevenLabs `conversation_config` names. `{}` uses Pointed's standard connection defaults; inspect effective model, voice, turn and other tuning values with `settings provider` before changing them. Use `--channel phone` for phone defaults. Web voice and web video share the `browser_audio` provider settings. Provider credentials, tools, consent and security remain managed by Pointed.
 
-With the 0.5.0 source CLI, template settings files also include `interviewChannel`. Use `browser` for a web interview with an optional camera, `browser_video` to require camera consent, or `browser_audio` for voice only. Choose `phone` for phone only or `participant_choice` to offer phone and web with an optional camera. A saved `null` preserves the older phone and web voice choices.
+With CLI version 0.5.0 or later, template settings files also include `interviewChannel`. Use `browser` for a web interview with an optional camera, `browser_video` to require camera consent, or `browser_audio` for voice only. Choose `phone` for phone only or `participant_choice` to offer phone and web with an optional camera. A saved `null` preserves the older phone and web voice choices.
 
 Keep `expectedRevision` while editing. A conflict exits with status 1, prints the current revision as JSON, and leaves your file intact. Read the latest settings and reconcile your edits before another save. The CLI does not automatically retry conflicting writes. List results are paginated; continue with `--cursor` until `nextCursor` is null. `--limit` accepts 1–25.
 
-Saving requires a user-backed workspace writer with `pointed:write`. It may provision an isolated provider configuration, but does not send invitations or start calls or recordings. Settings affect future runs; existing invitations retain their frozen configuration.
+Saving requires a user-backed workspace writer with `pointed:write`. It may provision an isolated provider configuration, but does not send invitations or start calls or recordings. By default, edits apply to future interviews. In the next CLI release, `pointed interviews settings pending TEMPLATE_ID --limit 25` lists eligible unstarted interviews. Follow `nextCursor` with `--cursor` to see more. To update a selection, add `"pendingUpdates": [{"inviteId": "INVITE_ID", "expectedRevision": 2}]` to the template settings file using the exact reviewed IDs and revisions. Save with `--kind story_template`. The server skips interviews that started or changed after review. The limit is 100 selections per save.
 
 ### Founder voice settings
 
@@ -142,4 +157,4 @@ Use `--channel browser_audio` for browser voice. The editable envelope contains 
 
 ### Control future contacts during enrollment
 
-In the upcoming 0.5.0 source version, `story-templates enroll` accepts `--auto-include-new-contacts` and `--no-auto-include-new-contacts`. Omitting both inherits the template default for new account enrollments and preserves existing account choices. See [Interview templates](/docs/story-templates#manage-enrollment) for template-wide and per-account behavior.
+In CLI version 0.5.0 or later, `story-templates enroll` accepts `--auto-include-new-contacts` and `--no-auto-include-new-contacts`. Omitting both inherits the template default for new account enrollments and preserves existing account choices. See [Interview templates](/docs/story-templates#manage-enrollment) for template-wide and per-account behavior.

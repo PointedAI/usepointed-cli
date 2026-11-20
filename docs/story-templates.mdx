@@ -6,7 +6,7 @@ description: Create reusable interview plans and prepare links for selected acco
 Interview templates are reusable collection plans. The CLI command remains `story-templates`. Enrollment prepares links for contacts; it does not send customer email or start a call.
 
 <Note>
-  Starters, product/channel/length options and whole-account enrollment shortcuts are in the upcoming 0.5.0 source version. npm currently publishes 0.4.0. [Run from source](/docs/installation#run-from-source) to use the new options.
+  Starters, product/channel/length options and whole-account enrollment shortcuts require CLI version 0.5.0 or later. [Update from npm](/docs/installation#update-the-cli) to use these options.
 </Note>
 
 ## Create from a use case
@@ -39,7 +39,7 @@ pointed story-templates create \
   --initial-question "What changed after adopting the product?"
 ```
 
-Use `--customer-facing-name` for the interview name shown to participants and `--customer-facing-topic` for what you want to hear about. Both options work with `story-templates create` and `story-templates update` in the source CLI. For example, use the topic “how onboarding went for your team.”
+Use `--customer-facing-name` for the interview name shown to participants and `--customer-facing-topic` for what you want to hear about. Both options work with `story-templates create` and `story-templates update` in CLI version 0.5.0 or later. For example, use the topic “how onboarding went for your team.”
 
 ## Inspect templates
 
@@ -90,7 +90,7 @@ pointed story-templates account <templateId> <accountId>
 pointed story-templates set-auto-include <templateId> <accountId> --enabled false
 ```
 
-`autoIncludeNewContacts` controls whether newly created contacts on an enrolled account receive prepared, unsent interview links. Neither enrollment nor auto-add sends invitations.
+`autoIncludeNewContacts` controls whether newly created contacts on an enrolled account are enrolled automatically. A shareable participant link requires an available interview channel. Neither enrollment nor auto-add sends invitations. With the updated hosted API, `invitesPrepared` counts newly shareable invitations, `invitesAlreadyPrepared` counts existing shareable invitations, and `invitesWithoutLinks` counts enrollments without a usable link. Review the template’s channels if a new enrollment has no link.
 
 ```bash
 pointed story-templates enroll <templateId> --account-id <accountId> --no-auto-include-new-contacts
@@ -98,7 +98,7 @@ pointed story-templates enroll <templateId> --account-id <accountId> --no-auto-i
 
 In the app, **Interview settings → People → Auto-add new people** sets the default for future account enrollments. Saving a change to this template-wide switch also replaces the auto-add choice on every currently enrolled account. The account's Templates card and `set-auto-include` can override that choice afterward; another change to the template-wide switch replaces those overrides again. Enabling it does not retroactively enroll existing contacts.
 
-The CLI has no dedicated template-wide switch command. Use the app to change the template-wide default. The opt-out enrollment flag is available in the upcoming 0.5.0 source version; npm 0.4.0 users can pass `"autoIncludeNewContacts": false` in an enrollment JSON body or use `set-auto-include` for an existing enrollment.
+The CLI has no dedicated template-wide switch command. Use the app to change the template-wide default. The opt-out enrollment flag requires CLI version 0.5.0 or later; users on 0.4.0 can pass `"autoIncludeNewContacts": false` in an enrollment JSON body or use `set-auto-include` for an existing enrollment.
 
 ## Edit settings and review existing interviews
 

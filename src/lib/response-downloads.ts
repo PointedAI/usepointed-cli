@@ -1,7 +1,7 @@
 interface CliMediaDownload {
   fileName: string;
   url: string | null;
-  status: "ready" | "preparing" | "unavailable";
+  status: "ready" | "preparing" | "unavailable" | "failed";
   reason: string | null;
 }
 
@@ -14,7 +14,7 @@ export interface CliSegmentVideoDownload extends CliMediaDownload {
   sequence: number;
 }
 
-type SelectedDownload = (CliRoundVideoDownload | CliSegmentVideoDownload | (CliMediaDownload & { kind: "participant_video" })) & { label: string };
+type SelectedDownload = (CliRoundVideoDownload | CliSegmentVideoDownload | (CliMediaDownload & { kind: "participant_video" | "interview_audio" })) & { label: string };
 
 export function selectResponseMediaDownloads(
   mediaVersion: string | undefined,
@@ -22,6 +22,7 @@ export function selectResponseMediaDownloads(
     videos: CliRoundVideoDownload[];
     segments?: CliSegmentVideoDownload[];
     participantVideo?: CliMediaDownload;
+    audio?: CliMediaDownload;
   },
 ): SelectedDownload[] {
   const continuous = mediaVersion === "continuous_v2" || mediaVersion === "live_s2s_v1";
@@ -30,6 +31,9 @@ export function selectResponseMediaDownloads(
     : downloads.videos.map(video => ({ ...video, label: `Round ${video.roundNumber}` }));
   if (downloads.participantVideo) {
     media.push({ ...downloads.participantVideo, kind: "participant_video", label: "Participant video" });
+  }
+  if (downloads.audio) {
+    media.push({ ...downloads.audio, kind: "interview_audio", label: "Interview audio" });
   }
   return media;
 }

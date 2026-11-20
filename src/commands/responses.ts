@@ -76,14 +76,15 @@ interface ResponseExportDownloadPayload {
     videos: CliRoundVideoDownload[];
     segments?: ResponseSegmentDownload[];
     participantVideo?: Omit<CliRoundVideoDownload, "roundNumber">;
+    audio?: Omit<CliRoundVideoDownload, "roundNumber">;
   };
 }
 
-interface VideoExportOutcome {
+interface MediaExportOutcome {
   roundNumber?: number;
   segmentId?: string;
   sequence?: number;
-  kind?: "participant_video";
+  kind?: "participant_video" | "interview_audio";
   fileName: string;
   status: "downloaded" | "preparing" | "unavailable" | "failed";
   reason: string | null;
@@ -137,13 +138,13 @@ function slugify(text: string): string {
     .replace(/^-|-$/g, "");
 }
 
-async function downloadVideoFile(outputPath: string, url: string): Promise<void> {
+async function downloadMediaFile(outputPath: string, url: string): Promise<void> {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Video download failed with status ${response.status}`);
+    throw new Error(`Media download failed with status ${response.status}`);
   }
 
-  if (!response.body) throw new Error("Video download has no body");
+  if (!response.body) throw new Error("Media download has no body");
   await writePrivateMedia(outputPath, response.body);
 }
 
@@ -193,38 +194,40 @@ async function writeResponseBundle(
   }
 
   const warnings = [...bundle.manifest.processingWarnings];
-  const videoDownloads: VideoExportOutcome[] = [];
+  const videoDownloads: MediaExportOutcome[] = [];
+  const audioDownloads: MediaExportOutcome[] = [];
   let failedDownloads = 0;
   for (const media of selectResponseMediaDownloads(bundle.media?.version, downloads)) {
-    let outcome: VideoExportOutcome["status"];
+    let outcome: MediaExportOutcome["status"];
     let reason: string | null = null;
     if (media.status !== "ready" || !media.url) {
-      outcome = media.status === "preparing" ? "preparing" : "unavailable";
-      reason = media.reason ?? "video download unavailable";
+      outcome = media.status === "ready" ? "failed" : media.status;
+      reason = media.reason ?? (media.status === "ready" ? "Ready media has no download URL" : "Media download unavailable");
     } else {
       try {
         if (media.fileName.toLowerCase() === "manifest.json") {
-          throw new Error("Video file name conflicts with manifest.json");
+          throw new Error("Media file name conflicts with manifest.json");
         }
-        await downloadVideoFile(exportFilePath(responseDir, media.fileName), media.url);
+        await downloadMediaFile(exportFilePath(responseDir, media.fileName), media.url);
         outcome = "downloaded";
       } catch (error) {
         outcome = "failed";
-        reason = error instanceof Error ? error.message : "video download failed";
-        failedDownloads += 1;
+        reason = error instanceof Error ? error.message : "media download failed";
       }
     }
+    if (outcome === "failed") failedDownloads++;
     if (reason) warnings.push(`${media.label}: ${reason}`);
     const identity = "roundNumber" in media ? { roundNumber: media.roundNumber }
       : "segmentId" in media ? { segmentId: media.segmentId, sequence: media.sequence }
       : { kind: media.kind };
-    videoDownloads.push({ ...identity, fileName: media.fileName, status: outcome, reason });
+    const outcomes = "kind" in media && media.kind === "interview_audio" ? audioDownloads : videoDownloads;
+    outcomes.push({ ...identity, fileName: media.fileName, status: outcome, reason });
   }
 
   const finalWarnings = [...new Set(warnings)];
   await writeFile(
     exportFilePath(responseDir, "manifest.json"),
-    JSON.stringify({ ...bundle.manifest, processingWarnings: finalWarnings, videoDownloads }, null, 2),
+    JSON.stringify({ ...bundle.manifest, processingWarnings: finalWarnings, videoDownloads, audioDownloads }, null, 2),
   );
 
   return { dir: responseDir, warnings: finalWarnings, failedDownloads };
@@ -273,7 +276,7 @@ export function createResponsesCommand(): Command {
               res.data,
             );
             if (failedDownloads > 0) {
-              printError(`Response export is incomplete: ${failedDownloads} video download(s) failed. Saved files to ${dir}`);
+              printError(`Response export is incomplete: ${failedDownloads} media download(s) failed. Saved files to ${dir}`);
               process.exitCode = 1;
             } else {
               printSuccess(`Exported response to ${dir}`);

@@ -14,7 +14,7 @@ Use macOS or Linux and Node.js 20 or newer. Node.js 22 is recommended for reposi
 
 You need an existing Pointed account with workspace access. New users can [request access](https://usepointed.ai/contact?reason=general); installing the CLI does not create an account. Start with the [quickstart](https://docs.usepointed.ai/docs/quickstart) for a complete first run.
 
-**Source availability:** this branch is preparing 0.5.0. The new spreadsheet imports, account/context fields, contact phones and template shortcuts below are not yet on npm; the latest published version is 0.4.0. Run from source to use them now.
+**Version 0.5.0:** spreadsheet imports, account/context fields, contact phones, template shortcuts and participant recording downloads are available in the npm package. Update an older installation with `npm install -g @pointed/cli@latest`.
 
 During development from this repository:
 
@@ -83,7 +83,7 @@ pointed responses list --campaign-id <campaignId>
 pointed responses download --campaign-id <campaignId> --output-dir ./pointed-export
 ```
 
-## Spreadsheet to interviews (0.5.0 source)
+## Spreadsheet to interviews (0.5.0+)
 
 ```bash
 pointed story-templates starters
@@ -120,7 +120,7 @@ pointed smart-intake commit --session-id <sessionId> \
 
 ## Story Templates
 
-Story templates orchestrate account-level customer story collection. Enrollment prepares survey links; customer email is sent only when you call the invite email commands.
+Story templates orchestrate account-level customer story collection. Enrollment prepares links when an interview channel is available; customer email is sent only when you call the invite email commands.
 
 ```bash
 pointed story-templates create \
@@ -170,7 +170,7 @@ Response downloads create a fresh private directory for each export, with owner-
 
 Account imports print complete results and exit with status 1 for failed account/contact writes or enrollment. Account create/update also exits with status 1 when the separate context write fails, retaining the saved account and `contextError` in JSON.
 
-Contact batches and link generation print their complete results and exit with status 1 if any item fails. Response downloads also exit with status 1 when a response or ready video cannot be exported, while preserving completed files. Export manifests record the final download outcomes; media still preparing or unavailable remains a warning.
+Contact batches and link generation print their complete results and exit with status 1 if any item fails. Response downloads also exit with status 1 when a response or ready recording cannot be exported, while preserving completed files. Export manifests record the final download outcomes; media still preparing or unavailable remains a warning.
 
 Explicitly empty contact selectors are rejected. Omit both selectors only when you intend to include all account contacts. Contract values accept finite nonnegative numbers without thousands separators; maximum rounds must be a positive integer.
 
@@ -215,11 +215,11 @@ pointed interviews settings set <targetId> --kind demo --file interview-settings
 
 `settings get` exports `expectedRevision`, `openingQuestion`, `context`, `instructions`, and `elevenLabsSettingsJson`. Advanced JSON uses native ElevenLabs `conversation_config` names. `{}` uses Pointed's standard connection defaults; inspect effective model, voice, turn and other tuning values with `settings provider` before changing them. Use `--channel phone` for phone defaults. Web voice and web video share the `browser_audio` provider settings. Provider credentials, tools, consent and security remain managed by Pointed.
 
-With the 0.5.0 source CLI, template settings files also include `interviewChannel`. Use `browser` for a web interview with an optional camera, `browser_video` to require camera consent, or `browser_audio` for voice only. Choose `phone` for phone only or `participant_choice` to offer phone and web with an optional camera. A saved `null` preserves the older phone and web voice choices.
+With CLI version 0.5.0 or later, template settings files also include `interviewChannel`. Use `browser` for a web interview with an optional camera, `browser_video` to require camera consent, or `browser_audio` for voice only. Choose `phone` for phone only or `participant_choice` to offer phone and web with an optional camera. A saved `null` preserves the older phone and web voice choices.
 
 Keep `expectedRevision` while editing. A conflict exits with status 1, prints the current revision as JSON, and leaves your file intact. Read the latest settings and reconcile your edits before another save. The CLI does not automatically retry conflicting writes. List results are paginated; continue with `--cursor` until `nextCursor` is null. `--limit` accepts 1–25.
 
-Saving requires a user-backed workspace writer with `pointed:write`. It may provision an isolated provider configuration, but does not send invitations or start calls or recordings. Settings affect future runs; existing invitations retain their frozen configuration.
+Saving requires a user-backed workspace writer with `pointed:write`. It may provision an isolated provider configuration, but does not send invitations or start calls or recordings. By default, edits apply to future interviews. In the next CLI release, `pointed interviews settings pending TEMPLATE_ID --limit 25` lists eligible unstarted interviews. Follow `nextCursor` with `--cursor` to see more. To update a selection, add `"pendingUpdates": [{"inviteId": "INVITE_ID", "expectedRevision": 2}]` to the template settings file using the exact reviewed IDs and revisions. Save with `--kind story_template`. The server skips interviews that started or changed after review. The limit is 100 selections per save.
 
 ### Founder voice settings
 
@@ -235,4 +235,4 @@ pointed admin demos voice-settings set <definitionId> --file phone-settings.json
 Use `--channel browser_audio` for browser voice. The editable envelope contains `channel`, `expectedRevision`, and `configuration`, including `elevenLabsSettingsJson`. Blank connection identifiers resolve to the standard Pointed connection on the server. The server rechecks current platform-admin authority before committing a save. These commands configure voice channels independently of the founder text-interview engine and do not initiate a call.
 
 
-When enrolling accounts, omit auto-include flags to inherit the template default for new enrollments (existing enrollments keep their choice). Use `--auto-include-new-contacts` or `--no-auto-include-new-contacts` for an explicit choice. The opt-out flag is in the upcoming 0.5.0 source version. A template-wide auto-add change in the app replaces all enrolled accounts' choices; auto-add prepares interviews without sending them. See the [template guide](https://docs.usepointed.ai/docs/story-templates).
+When enrolling accounts, omit auto-include flags to inherit the template default for new enrollments (existing enrollments keep their choice). Use `--auto-include-new-contacts` or `--no-auto-include-new-contacts` for an explicit choice. The opt-out flag requires CLI version 0.5.0 or later. A template-wide auto-add change in the app replaces all enrolled accounts' choices; auto-add prepares interviews without sending them. See the [template guide](https://docs.usepointed.ai/docs/story-templates).
