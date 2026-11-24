@@ -1,7 +1,19 @@
 ---
 title: AI tools and documentation
-description: Give your assistant access to Pointed CLI documentation and understand which tools can change workspace data.
+description: Connect an assistant to your Pointed workspace, look up public documentation, or run the Pointed CLI.
 ---
+
+## Connect to your Pointed workspace
+
+The Pointed workspace MCP server uses Streamable HTTP at `https://app.usepointed.ai/mcp`. Access is available to enabled workspaces through an approved OAuth client.
+
+1. Open the Pointed connection supplied for your workspace. In a supported custom client, use the server URL above and select OAuth. If you need a connection for your client or workspace, [contact Pointed](https://usepointed.ai/contact?reason=general).
+2. Sign in with the Pointed account that belongs to the workspace you want to use. If you just received a Pointed invitation, accept it using the email address it was sent to, then return to the connection.
+3. Review the requested permissions. Ask your assistant **“Which Pointed workspace am I connected to?”** The `get_workspace` tool returns the workspace name and available capabilities. Check the name before asking it to work with customer data.
+
+With read access you can find accounts, interviews and response progress. Preparing an interview draft requires write permission. Reading interview excerpts or cited insights requires evidence access. Pointed checks your current workspace role when you use a tool. Saving a draft leaves you in control of sending invitations.
+
+If your client asks you to reconnect after a sign-in change, reconnect the Pointed account and check the workspace name again. Integration developers can discover the current authorization server and supported scopes from [Pointed’s resource metadata](https://app.usepointed.ai/.well-known/oauth-protected-resource/mcp).
 
 ## Read the documentation with an assistant
 
@@ -24,7 +36,3 @@ An agent with terminal access can use the installed CLI after you complete [auth
 Review customer records and recipient selections before a write. Creating contacts or campaigns, enrolling accounts, and generating links change workspace data. Sending or reminding an invitation contacts a customer and should follow your explicit approval.
 
 For batch operations, inspect the JSON output and exit status. A nonzero exit can include successful items alongside failures; [response export manifests](/docs/response-exports) preserve each outcome. Check what succeeded before retrying.
-
-## Pointed in ChatGPT
-
-Adding this documentation MCP server to an assistant provides documentation lookup only. It does not install a Pointed app that operates your workspace in ChatGPT. Use the [CLI command reference](/docs/commands) for the operations available through the CLI, or [contact Pointed](https://usepointed.ai/contact?reason=general) about integration availability.
