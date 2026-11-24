@@ -22,6 +22,8 @@ manage setup. It also requests offline access so `pointed auth refresh` can rene
 the connection. These permissions do not override your workspace role. The token is
 bound to the selected workspace and the configured Pointed API.
 
+The CLI looks up the browser sign-in provider for the configured Pointed API. When Pointed changes provider or you switch API environments, run `pointed auth login` again. The first refresh of credentials saved by version 0.5.0 or earlier also asks you to sign in again. Subsequent refreshes use the issuer, public client and API resource from your login.
+
 After the OAuth authorization update, sign in again to replace older identity-only
 tokens. Refreshing an old token does not add the new permissions. Platform
 administrators can request additional admin consent with `pointed auth login --admin`;
@@ -87,7 +89,8 @@ Useful environment overrides:
 
 - `POINTED_API_URL`: override the API base URL
 - `POINTED_OUTPUT_FORMAT`: set `json` or `table`
-- `CLERK_FRONTEND_API_URL`: override hosted OAuth discovery
+- `POINTED_OAUTH_ISSUER` (or `--issuer`) and `POINTED_CLI_OAUTH_CLIENT_ID`: explicitly select an issuer and its public client for development
+- `CLERK_FRONTEND_API_URL` (or `--clerk-domain`): explicitly select a legacy Clerk issuer
 - `CLERK_OAUTH_CLIENT_ID`: override the OAuth client ID for development
 
 For browser callback, expired-token, or permission problems, see [Troubleshooting](/docs/troubleshooting). Pointed's [privacy policy](https://usepointed.ai/privacy) explains how the service handles data.

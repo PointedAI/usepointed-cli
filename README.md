@@ -38,7 +38,7 @@ The CLI points at the hosted Pointed app by default:
 pointed config get apiBaseUrl
 ```
 
-Log in with browser-based OAuth:
+Log in with browser-based OAuth. The CLI discovers the sign-in provider for the configured Pointed API:
 
 ```bash
 pointed auth login
@@ -155,7 +155,8 @@ Useful environment overrides:
 - `POINTED_API_URL`: override the hosted API base URL
 - `POINTED_OUTPUT_FORMAT`: set `json` or `table`
 - `POINTED_API_KEY`: authenticate without stored OAuth credentials
-- `CLERK_FRONTEND_API_URL`: override hosted Clerk OAuth discovery
+- `POINTED_OAUTH_ISSUER` and `POINTED_CLI_OAUTH_CLIENT_ID`: explicitly select an OAuth issuer and its public client for development
+- `CLERK_FRONTEND_API_URL`: explicitly select a legacy Clerk issuer
 - `CLERK_OAUTH_CLIENT_ID`: override the public OAuth client ID for development
 
 ## Local file safety

@@ -24,7 +24,7 @@ program
   .description(
     "Pointed CLI for managing accounts, contacts, campaigns, survey links, and response exports from the terminal.",
   )
-  .version("0.5.0");
+  .version("0.5.1");
 
 program.addCommand(createAgentCommand());
 program.addCommand(createSetupCommand());

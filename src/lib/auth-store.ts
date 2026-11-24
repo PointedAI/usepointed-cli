@@ -1,8 +1,12 @@
+import { getApiBaseUrl } from "./config.js";
 import { readPrivateState, writePrivateState, removePrivateState } from "./private-files.js";
 import * as path from "node:path";
 import * as os from "node:os";
 
 export interface StoredCredentials {
+  issuer?: string;
+  clientId?: string;
+  resource?: string;
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
@@ -38,6 +42,7 @@ export function getAuthToken(): string | null {
 
   const creds = loadCredentials();
   if (!creds) return null;
+  if (creds.resource && creds.resource !== new URL("/api/cli", getApiBaseUrl()).href) return null;
 
   // Check if token is expired (with 60s buffer)
   if (Date.now() >= creds.expiresAt - 60_000) {
