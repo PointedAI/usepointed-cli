@@ -13,31 +13,17 @@ import {
 } from "../lib/auth-store.js";
 import { ensureConfigFile, getApiBaseUrl } from "../lib/config.js";
 import { printJson, printError, printSuccess } from "../lib/output.js";
+import {
+  discoverEndpoints,
+  resolveClient,
+  type OAuthClient,
+  type OAuthOptions,
+} from "../lib/oauth-client.js";
 
-/**
- * The Clerk OAuth Application client ID (public — safe to embed).
- * This is the public client registered for the Pointed CLI.
- * Defaults to production; override with CLERK_OAUTH_CLIENT_ID env var for dev.
- */
-const CLERK_OAUTH_CLIENT_ID =
-  process.env["CLERK_OAUTH_CLIENT_ID"] ?? "qxCPM9BP0iFSRK9D";
-const DEFAULT_CLERK_FRONTEND_API_URL = "https://clerk.usepointed.ai";
-
-/**
- * Port for the local OAuth callback server.
- * Must match a redirect URI registered in the Clerk OAuth Application.
- */
 const CALLBACK_PORT = 3100;
 const REDIRECT_URI = `http://127.0.0.1:${CALLBACK_PORT}/callback`;
 
-/**
- * Scopes to request from Clerk's OAuth server.
- */
 const OAUTH_SCOPES = "openid profile email offline_access user:org:read pointed:read pointed:write pointed:evidence pointed:setup";
-
-function oauthResource(): string {
-  return new URL("/api/cli", getApiBaseUrl()).href;
-}
 
 interface TokenResponse {
   access_token: string;
@@ -48,48 +34,30 @@ interface TokenResponse {
   scope?: string;
 }
 
-interface OAuthServerMetadata {
-  authorization_endpoint: string;
-  token_endpoint: string;
-  issuer: string;
-}
-
-async function discoverOAuthEndpoints(
-  clerkDomain: string,
-): Promise<OAuthServerMetadata> {
-  const metadataUrl = `${clerkDomain}/.well-known/oauth-authorization-server`;
-  const response = await fetch(metadataUrl);
-  if (!response.ok) {
-    throw new Error(
-      `Failed to discover OAuth endpoints from ${metadataUrl}: ${response.status}`,
-    );
-  }
-  return (await response.json()) as OAuthServerMetadata;
-}
-
 async function exchangeCodeForTokens(
   tokenEndpoint: string,
   code: string,
   codeVerifier: string,
+  client: OAuthClient,
 ): Promise<TokenResponse> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code,
     redirect_uri: REDIRECT_URI,
-    client_id: CLERK_OAUTH_CLIENT_ID,
+    client_id: client.clientId,
     code_verifier: codeVerifier,
-    resource: oauthResource(),
+    resource: client.resource,
   });
 
   const response = await fetch(tokenEndpoint, {
     method: "POST",
+    redirect: "error",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Token exchange failed (${response.status}): ${text}`);
+    throw new Error(`Token exchange failed (${response.status}).`);
   }
 
   return (await response.json()) as TokenResponse;
@@ -104,25 +72,14 @@ export function createAuthCommand(openBrowser: typeof open = open): Command {
     .command("login")
     .description("Log in via browser (OAuth + PKCE)")
     .option("--admin", "Request platform administrator permissions")
-    .option(
-      "--clerk-domain <url>",
-      "Clerk Frontend API URL",
-      process.env["CLERK_FRONTEND_API_URL"] ?? DEFAULT_CLERK_FRONTEND_API_URL,
-    )
-    .action(async (options: { clerkDomain?: string; admin?: boolean }) => {
-      const clerkDomain = options.clerkDomain;
+    .option("--issuer <url>", "Override the Pointed OAuth issuer", process.env.POINTED_OAUTH_ISSUER)
+    .option("--clerk-domain <url>", "Use a legacy Clerk issuer", process.env.CLERK_FRONTEND_API_URL)
+    .action(async (options: OAuthOptions & { admin?: boolean }) => {
       let closeCallbackServer: (() => void) | undefined;
-      if (!clerkDomain) {
-        printError(
-          "Clerk domain is required. Set CLERK_FRONTEND_API_URL or pass --clerk-domain.",
-        );
-        process.exit(1);
-      }
-
       try {
-        // 1. Discover OAuth endpoints
         console.log("Discovering OAuth endpoints...");
-        const metadata = await discoverOAuthEndpoints(clerkDomain);
+        const client = await resolveClient(options);
+        const endpoints = await discoverEndpoints(client.issuer);
 
         // 2. Generate PKCE parameters
         const codeVerifier = generateCodeVerifier();
@@ -140,12 +97,12 @@ export function createAuthCommand(openBrowser: typeof open = open): Command {
         };
 
         // 4. Build authorization URL
-        const authUrl = new URL(metadata.authorization_endpoint);
+        const authUrl = new URL(endpoints.authorization);
         authUrl.searchParams.set("response_type", "code");
-        authUrl.searchParams.set("client_id", CLERK_OAUTH_CLIENT_ID);
+        authUrl.searchParams.set("client_id", client.clientId);
         authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
         authUrl.searchParams.set("scope", options.admin ? `${OAUTH_SCOPES} pointed:admin` : OAUTH_SCOPES);
-        authUrl.searchParams.set("resource", oauthResource());
+        authUrl.searchParams.set("resource", client.resource);
         authUrl.searchParams.set("state", state);
         authUrl.searchParams.set("code_challenge", codeChallenge);
         authUrl.searchParams.set("code_challenge_method", "S256");
@@ -169,13 +126,15 @@ export function createAuthCommand(openBrowser: typeof open = open): Command {
         // 8. Exchange code for tokens
         console.log("Exchanging authorization code for tokens...");
         const tokens = await exchangeCodeForTokens(
-          metadata.token_endpoint,
+          endpoints.token,
           callback.code,
           codeVerifier,
+          client,
         );
 
         // 9. Store credentials
         saveCredentials({
+          ...client,
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
           expiresAt: Date.now() + tokens.expires_in * 1000,
@@ -259,20 +218,9 @@ export function createAuthCommand(openBrowser: typeof open = open): Command {
   auth
     .command("refresh")
     .description("Refresh the OAuth access token")
-    .option(
-      "--clerk-domain <url>",
-      "Clerk Frontend API URL",
-      process.env["CLERK_FRONTEND_API_URL"] ?? DEFAULT_CLERK_FRONTEND_API_URL,
-    )
-    .action(async (options: { clerkDomain?: string }) => {
-      const clerkDomain = options.clerkDomain;
-      if (!clerkDomain) {
-        printError(
-          "Clerk domain is required. Set CLERK_FRONTEND_API_URL or pass --clerk-domain.",
-        );
-        process.exit(1);
-      }
-
+    .option("--issuer <url>", "Override the Pointed OAuth issuer", process.env.POINTED_OAUTH_ISSUER)
+    .option("--clerk-domain <url>", "Use a legacy Clerk issuer", process.env.CLERK_FRONTEND_API_URL)
+    .action(async (options: OAuthOptions) => {
       const { loadCredentials } = await import("../lib/auth-store.js");
       const creds = loadCredentials();
       if (!creds || !creds.refreshToken) {
@@ -281,28 +229,37 @@ export function createAuthCommand(openBrowser: typeof open = open): Command {
       }
 
       try {
-        const metadata = await discoverOAuthEndpoints(clerkDomain);
+        const client = await resolveClient(options);
+        if (
+          creds.issuer !== client.issuer ||
+          creds.clientId !== client.clientId ||
+          creds.resource !== client.resource
+        ) {
+          throw new Error("Run pointed auth login to reconnect your account to this Pointed environment.");
+        }
+        const endpoints = await discoverEndpoints(client.issuer);
 
         const body = new URLSearchParams({
           grant_type: "refresh_token",
           refresh_token: creds.refreshToken,
-          resource: oauthResource(),
-          client_id: CLERK_OAUTH_CLIENT_ID,
+          resource: client.resource,
+          client_id: client.clientId,
         });
 
-        const response = await fetch(metadata.token_endpoint, {
+        const response = await fetch(endpoints.token, {
           method: "POST",
+          redirect: "error",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: body.toString(),
         });
 
         if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`Token refresh failed (${response.status}): ${text}`);
+          throw new Error(`Token refresh failed (${response.status}). Run pointed auth login again.`);
         }
 
         const tokens = (await response.json()) as TokenResponse;
         saveCredentials({
+          ...client,
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token || creds.refreshToken,
           expiresAt: Date.now() + tokens.expires_in * 1000,
