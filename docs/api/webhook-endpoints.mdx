@@ -1,0 +1,794 @@
+---
+title: Webhook endpoints
+description: Register the HTTPS endpoints that receive Pointed events, manage their signing secrets, send test events and read the delivery log.
+---
+
+A webhook endpoint is an HTTPS address of yours that Pointed posts events to. These routes manage endpoints. For the events themselves, the body format, signature verification and retries, see [Webhooks](/docs/webhooks).
+
+Rules that apply to every route on this page:
+
+- **A workspace admin only.** The credential must be user-backed and belong to a workspace admin. This is true for the read routes too.
+- **Every workspace has webhooks.** There is nothing to turn on first.
+- **Five endpoints** for each workspace.
+
+## The endpoint object
+
+```json
+{
+  "id": "kx24v8n1s5t9w3y6z0b7d2g4jh",
+  "host": "example.com",
+  "description": "Rewards service",
+  "eventTypes": ["interview.completed"],
+  "receiveTestEvents": false,
+  "status": "active",
+  "disabledReason": null,
+  "createdVia": "api",
+  "createdAt": 1796137200000,
+  "activeSince": 1796137200000,
+  "lastSuccessAt": null,
+  "lastFailureAt": null,
+  "failingSince": null,
+  "previousSecretValidUntil": null
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | The endpoint ID. |
+| `host` | string | The host name of the address. Pointed never returns the full address after you save it, because the address can itself be a secret. |
+| `description` | string or null | Your note about the endpoint. |
+| `eventTypes` | array of strings | The events the endpoint receives. |
+| `receiveTestEvents` | boolean | Whether the endpoint also receives events from test interviews. |
+| `status` | string | One of the values in the table below. |
+| `disabledReason` | string or null | Why Pointed turned the endpoint off: `gone` or `failing`. |
+| `createdVia` | string | Where the endpoint was created: `api`, `dashboard` or `connected_tool`. |
+| `createdAt` | number | When the endpoint was created, in milliseconds. |
+| `activeSince` | number or null | When the endpoint was last turned on. Events from before this time are not sent to it. `null` unless `status` is `active`. |
+| `lastSuccessAt`, `lastFailureAt` | number or null | When a delivery last succeeded and last failed. |
+| `failingSince` | number or null | The start of the current run of failed deliveries. Any success clears it. |
+| `previousSecretValidUntil` | number or null | After a rotation, the time until which the previous secret still works. |
+
+### Endpoint statuses
+
+| `status` | Meaning | How to change it |
+| --- | --- | --- |
+| `active` | Pointed sends events to the endpoint. | Pause it with [Update an endpoint](#update-an-endpoint). |
+| `paused` | You turned the endpoint off. Nothing is sent. | Set `status` to `active`. |
+| `disabled` | Pointed turned the endpoint off. `disabledReason` is `gone` if the endpoint answered `410 Gone`, or `failing` if every delivery failed for five days. | Fix the receiver, then set `status` to `active`. |
+| `pending_approval` | The endpoint was created through a connected tool and waits for a workspace admin. Nothing is sent except test events. | A workspace admin turns it on in the Pointed app, on the Webhooks page, which shows the full address. This API cannot turn it on. |
+
+An endpoint created with this API is `active` at once.
+
+An endpoint hears only about what happens while it is on. Events from before it was created, or from while it was paused or disabled, are not sent later.
+
+## List endpoints
+
+```text
+GET /api/cli/v1/webhook-endpoints
+```
+
+**Authorization:** scope `pointed:read`. A user-backed credential that belongs to a workspace admin.
+
+Returns the workspace's endpoints, oldest first, and the event types an endpoint can receive. It takes no parameters.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "endpoints": [
+      {
+        "id": "kx24v8n1s5t9w3y6z0b7d2g4jh",
+        "host": "example.com",
+        "description": "Rewards service",
+        "eventTypes": ["interview.completed"],
+        "receiveTestEvents": false,
+        "status": "active",
+        "disabledReason": null,
+        "createdVia": "api",
+        "createdAt": 1796137200000,
+        "activeSince": 1796137200000,
+        "lastSuccessAt": 1796317393000,
+        "lastFailureAt": null,
+        "failingSince": null,
+        "previousSecretValidUntil": null
+      }
+    ],
+    "eventTypes": [
+      {
+        "type": "interview.started",
+        "description": "A contact agreed to the notice and started the interview, or asked for a call. Sent once per interview.",
+        "default": false
+      },
+      {
+        "type": "interview.completed",
+        "description": "The interviewer finished the interview. Sent once per interview. Recordings and the summary arrive later.",
+        "default": true
+      },
+      {
+        "type": "interview.incomplete",
+        "description": "An attempt ended before the interview was finished: the contact left early, nothing was captured, or a call was not answered. Sent once per attempt.",
+        "default": false
+      },
+      {
+        "type": "interview.summary_ready",
+        "description": "The first AI summary and sentiment for a completed interview are saved.",
+        "default": false
+      },
+      {
+        "type": "interview.recording_ready",
+        "description": "Every recording a completed interview expects has settled, ready or not.",
+        "default": false
+      },
+      {
+        "type": "interview.deleted",
+        "description": "An interview response was deleted by a teammate, by retention or for a privacy request.",
+        "default": false
+      },
+      {
+        "type": "invite.expired",
+        "description": "An interview link passed its expiry date without a completed interview.",
+        "default": false
+      },
+      {
+        "type": "campaign.completed",
+        "description": "Every current invite in an account's interviews is completed or expired.",
+        "default": false
+      }
+    ],
+    "maxEndpoints": 5
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoints` | array | The [endpoint objects](#the-endpoint-object). |
+| `eventTypes` | array | Every event type an endpoint can subscribe to. `default` is `true` for the types a new endpoint gets when you name none. |
+| `maxEndpoints` | number | The most endpoints a workspace can have. |
+
+**Errors:** see [Errors on this page](#errors-on-this-page).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/webhook-endpoints \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Create an endpoint
+
+```text
+POST /api/cli/v1/webhook-endpoints
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential that belongs to a workspace admin.
+
+Creates an endpoint and returns its signing secret. The endpoint is `active` at once.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `url` | string | Yes | The HTTPS address that receives events. See the rules below. |
+| `description` | string | No | Your note about the endpoint. Up to 200 characters. |
+| `eventTypes` | array of strings | No | The events to receive. The default is `["interview.completed"]`. It needs at least one type. |
+| `receiveTestEvents` | boolean | No | Whether to also receive events from test interviews. The default is `false`. See [Test events](/docs/webhooks#test-events). |
+
+Rules for `url`:
+
+- It starts with `https://` and uses the default port.
+- It has no username, password or `#` part. A path and a query string are allowed.
+- The host is a public domain name. An IP address, `localhost` and internal or reserved names are refused.
+- It is not a Pointed address.
+- It has up to 2,048 characters.
+- The workspace has no other endpoint with exactly the same address.
+
+**Response:** `201 Created`
+
+```json
+{
+  "data": {
+    "endpoint": {
+      "id": "kx24v8n1s5t9w3y6z0b7d2g4jh",
+      "host": "example.com",
+      "description": "Rewards service",
+      "eventTypes": ["interview.completed"],
+      "receiveTestEvents": false,
+      "status": "active",
+      "disabledReason": null,
+      "createdVia": "api",
+      "createdAt": 1796137200000,
+      "activeSince": 1796137200000,
+      "lastSuccessAt": null,
+      "lastFailureAt": null,
+      "failingSince": null,
+      "previousSecretValidUntil": null
+    },
+    "secret": "whsec_c2FtcGxlLXNlY3JldC1kby1ub3QtdXNlLTAwMDAwMDA=",
+    "needsApproval": false,
+    "settingsUrl": "https://app.usepointed.ai/dashboard/webhooks"
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint` | object | The new [endpoint object](#the-endpoint-object). |
+| `secret` | string | The signing secret. It starts with `whsec_`. Use it to [verify the signature](/docs/webhooks#verify-the-signature) of each event. |
+| `needsApproval` | boolean | Always `false` for an endpoint created with this API. |
+| `settingsUrl` | string | The Webhooks page in the Pointed app. |
+
+### The signing secret is shown once
+
+The secret is in this response and in the response to [Rotate the signing secret](#rotate-the-signing-secret). No other route returns it. Store it in your secret store when you receive it.
+
+If you lose the secret, do not create the endpoint again. A second endpoint with the same address returns 409. Rotate the secret of the existing endpoint to get a new one.
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 400 | none | The body is not a JSON object, `url` is missing, or a field has the wrong type. |
+| 400 | `INVALID_REQUEST` | The address breaks a rule, an event type is unknown, `eventTypes` is empty, or the description is too long. `error` gives the reason. |
+| 409 | `WEBHOOK_CONFLICT` | The workspace already has an endpoint with that address, or already has five endpoints. |
+
+Also the [errors on this page](#errors-on-this-page).
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/webhook-endpoints \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/pointed",
+    "description": "Rewards service",
+    "eventTypes": ["interview.completed"]
+  }'
+```
+
+## Get an endpoint
+
+```text
+GET /api/cli/v1/webhook-endpoints/{id}
+```
+
+**Authorization:** scope `pointed:read`. A user-backed credential that belongs to a workspace admin.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The endpoint ID. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "endpoint": {
+      "id": "kx24v8n1s5t9w3y6z0b7d2g4jh",
+      "host": "example.com",
+      "description": "Rewards service",
+      "eventTypes": ["interview.completed"],
+      "receiveTestEvents": false,
+      "status": "active",
+      "disabledReason": null,
+      "createdVia": "api",
+      "createdAt": 1796137200000,
+      "activeSince": 1796137200000,
+      "lastSuccessAt": 1796317393000,
+      "lastFailureAt": null,
+      "failingSince": null,
+      "previousSecretValidUntil": null
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 404 | No endpoint with that ID in your workspace. |
+
+Also the [errors on this page](#errors-on-this-page).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/webhook-endpoints/kx24v8n1s5t9w3y6z0b7d2g4jh \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Update an endpoint
+
+```text
+PATCH /api/cli/v1/webhook-endpoints/{id}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential that belongs to a workspace admin.
+
+Changes the address, the description, the events or the test setting, and pauses or turns on the endpoint. Send only the fields you want to change. The signing secret stays the same.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The endpoint ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `url` | string | No | A new address. The same rules apply as in [Create an endpoint](#create-an-endpoint). |
+| `description` | string | No | Your note. An empty string clears it. |
+| `eventTypes` | array of strings | No | The events to receive. It replaces the current list. |
+| `receiveTestEvents` | boolean | No | Whether to also receive events from test interviews. |
+| `status` | string | No | `paused` to stop sending, or `active` to turn the endpoint on. |
+
+What a change does:
+
+- A new address starts with a clean record. `lastSuccessAt`, `lastFailureAt` and `failingSince` are cleared, and `activeSince` of an active endpoint moves to now. Deliveries that were still waiting for the old address are cancelled with the error code `address_changed`. Use [Resend a delivery](#resend-a-delivery) to send one to the new address.
+- A new event type, or `receiveTestEvents` set to `true`, applies from now. Events about earlier interviews are not sent for it.
+- `"status": "paused"` works on an endpoint that is `active` or `paused`.
+- `"status": "active"` turns on an endpoint that is `paused` or `disabled`. Events from while it was off are not sent. An endpoint that is `pending_approval` cannot be turned on with this API. See [Endpoint statuses](#endpoint-statuses).
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "endpoint": {
+      "id": "kx24v8n1s5t9w3y6z0b7d2g4jh",
+      "host": "example.com",
+      "description": "Rewards service",
+      "eventTypes": ["interview.completed", "interview.incomplete"],
+      "receiveTestEvents": false,
+      "status": "paused",
+      "disabledReason": null,
+      "createdVia": "api",
+      "createdAt": 1796137200000,
+      "activeSince": null,
+      "lastSuccessAt": 1796317393000,
+      "lastFailureAt": null,
+      "failingSince": null,
+      "previousSecretValidUntil": null
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 400 | none | The body is not a JSON object, a field has the wrong type, or `status` is not `active` or `paused`. |
+| 400 | `INVALID_REQUEST` | The address breaks a rule, an event type is unknown, `eventTypes` is empty, or the description is too long. |
+| 404 | `WEBHOOK_NOT_FOUND` | No endpoint with that ID in your workspace. |
+| 409 | `WEBHOOK_CONFLICT` | Another endpoint already has that address, you tried to pause an endpoint that is `disabled` or `pending_approval`, or you tried to turn on an endpoint that is `pending_approval`. |
+
+Also the [errors on this page](#errors-on-this-page).
+
+**Example**
+
+```bash
+curl -X PATCH https://app.usepointed.ai/api/cli/v1/webhook-endpoints/kx24v8n1s5t9w3y6z0b7d2g4jh \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "paused", "eventTypes": ["interview.completed", "interview.incomplete"]}'
+```
+
+## Delete an endpoint
+
+```text
+DELETE /api/cli/v1/webhook-endpoints/{id}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential that belongs to a workspace admin.
+
+Stops sending at once and removes the endpoint together with its delivery log.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The endpoint ID. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "deleted": true
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 404 | `WEBHOOK_NOT_FOUND` | No endpoint with that ID in your workspace. |
+
+Also the [errors on this page](#errors-on-this-page).
+
+**Example**
+
+```bash
+curl -X DELETE https://app.usepointed.ai/api/cli/v1/webhook-endpoints/kx24v8n1s5t9w3y6z0b7d2g4jh \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Send a test event
+
+```text
+POST /api/cli/v1/webhook-endpoints/{id}/test
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential that belongs to a workspace admin.
+
+Queues one `webhook.test` event for the endpoint. The event carries invented sample data in the shape of `interview.completed`, and its `test` field is `true`. It is sent to an endpoint in any status, and a failed test does not count against the endpoint.
+
+The response says the event was queued, not that it arrived. Read the result from [List deliveries](#list-deliveries).
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The endpoint ID. |
+
+The route takes no body.
+
+**Response:** `202 Accepted`
+
+```json
+{
+  "data": {
+    "deliveryId": "km65c2x9z4q1w8e3r7t0y5u6ia",
+    "eventId": "evt_8c2d4f6a1b3e5d7f9a0c2e4b6d8f1a3c"
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `deliveryId` | string | The delivery to look for in the log. |
+| `eventId` | string | The ID of the test event. It is the `id` in the event body and the `webhook-id` header. |
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 404 | `WEBHOOK_NOT_FOUND` | No endpoint with that ID in your workspace. |
+| 429 | `WEBHOOK_RATE_LIMITED` | The workspace sent 20 test events this hour. |
+
+Also the [errors on this page](#errors-on-this-page).
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/webhook-endpoints/kx24v8n1s5t9w3y6z0b7d2g4jh/test \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Rotate the signing secret
+
+```text
+POST /api/cli/v1/webhook-endpoints/{id}/rotate-secret
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential that belongs to a workspace admin.
+
+Issues a new signing secret for the endpoint. The previous secret keeps working for 24 hours. During that time Pointed signs every request with both secrets, so your receiver can verify with either one while you switch.
+
+Only one earlier secret is kept. If you rotate again within those 24 hours, the secret from before the first rotation stops working at once.
+
+Use this route when a secret has leaked, and when you have lost the secret.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The endpoint ID. |
+
+The route takes no body.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "endpoint": {
+      "id": "kx24v8n1s5t9w3y6z0b7d2g4jh",
+      "host": "example.com",
+      "description": "Rewards service",
+      "eventTypes": ["interview.completed"],
+      "receiveTestEvents": false,
+      "status": "active",
+      "disabledReason": null,
+      "createdVia": "api",
+      "createdAt": 1796137200000,
+      "activeSince": 1796137200000,
+      "lastSuccessAt": 1796317393000,
+      "lastFailureAt": null,
+      "failingSince": null,
+      "previousSecretValidUntil": 1796404800000
+    },
+    "secret": "whsec_c2FtcGxlLXNlY3JldC1kby1ub3QtdXNlLTAwMDAwMDE=",
+    "previousSecretValidUntil": 1796404800000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint` | object | The [endpoint object](#the-endpoint-object). |
+| `secret` | string | The new signing secret. It is shown once. |
+| `previousSecretValidUntil` | number | The time until which the previous secret still works, in milliseconds. |
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 404 | `WEBHOOK_NOT_FOUND` | No endpoint with that ID in your workspace. |
+
+Also the [errors on this page](#errors-on-this-page).
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/webhook-endpoints/kx24v8n1s5t9w3y6z0b7d2g4jh/rotate-secret \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## List deliveries
+
+```text
+GET /api/cli/v1/webhook-endpoints/{id}/deliveries
+```
+
+**Authorization:** scope `pointed:read`. A user-backed credential that belongs to a workspace admin.
+
+Returns the endpoint's delivery log, newest first. A delivery is one event for one endpoint. The log holds outcomes only. It never holds the event body, the address or what your endpoint answered in its body. Entries are kept for 30 days.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The endpoint ID. |
+
+**Query parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `limit` | integer | No | The page size, from 1 to 50. The default is 20. |
+| `cursor` | string | No | The `nextCursor` from the previous page. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "deliveries": [
+      {
+        "id": "kq07f3h6k9n2q5t8w1z4c7e0ib",
+        "eventId": "evt_5b1f0c9e7a2d4e83b6c1a4f09d2e7c55",
+        "eventType": "interview.completed",
+        "test": false,
+        "trigger": "event",
+        "interviewId": "jd7f2k9x0m4q8v1n3s6t5w2y7z",
+        "status": "pending",
+        "attempts": 1,
+        "maxAttempts": 8,
+        "statusCode": 500,
+        "errorCode": "http_500",
+        "durationMs": 412,
+        "createdAt": 1796317392000,
+        "lastAttemptAt": 1796317392000,
+        "deliveredAt": null,
+        "nextAttemptAt": 1796317452000,
+        "resendable": false
+      },
+      {
+        "id": "km65c2x9z4q1w8e3r7t0y5u6ia",
+        "eventId": "evt_8c2d4f6a1b3e5d7f9a0c2e4b6d8f1a3c",
+        "eventType": "webhook.test",
+        "test": true,
+        "trigger": "test",
+        "interviewId": null,
+        "status": "delivered",
+        "attempts": 1,
+        "maxAttempts": 1,
+        "statusCode": 200,
+        "errorCode": null,
+        "durationMs": 182,
+        "createdAt": 1796137500000,
+        "lastAttemptAt": 1796137500000,
+        "deliveredAt": 1796137500000,
+        "nextAttemptAt": null,
+        "resendable": true
+      }
+    ],
+    "nextCursor": null
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | The delivery ID. |
+| `eventId` | string | The ID of the event. It stays the same across retries and resends. |
+| `eventType` | string | The event type, such as `interview.completed` or `webhook.test`. |
+| `test` | boolean | `true` for a test event or an event from a test interview. |
+| `trigger` | string | Why the delivery exists: `event` for something that happened, `test` for a test event you sent, `resend` for a resend. |
+| `interviewId` | string or null | The invite ID of the interview the event is about. `null` for a test event and for `campaign.completed`. |
+| `status` | string | One of the values in the table below. |
+| `attempts` | number | How many times Pointed has tried. |
+| `maxAttempts` | number | The most times Pointed tries: 8, or 1 for a test event. |
+| `statusCode` | number or null | The HTTP status your endpoint answered with on the last attempt. `null` if there was no answer. |
+| `errorCode` | string or null | Why the last attempt failed, or why the delivery will not be sent. See the table below. `null` after a success. |
+| `durationMs` | number or null | How long the last attempt took, in milliseconds. |
+| `createdAt` | number | When the delivery was created, in milliseconds. |
+| `lastAttemptAt` | number or null | When Pointed last tried. |
+| `deliveredAt` | number or null | When your endpoint answered with a `2xx` status. |
+| `nextAttemptAt` | number or null | When Pointed tries next. Present only while `status` is `pending`. |
+| `resendable` | boolean | Whether [Resend a delivery](#resend-a-delivery) can send it again. |
+| `nextCursor` | string or null | Send it as `cursor` to get the next page. `null` on the last page. |
+
+### Delivery statuses
+
+| `status` | Meaning |
+| --- | --- |
+| `pending` | Waiting for its first attempt or for a retry. |
+| `sending` | A request is on its way. |
+| `delivered` | Your endpoint answered with a `2xx` status. |
+| `failed` | Pointed stopped trying. `errorCode` says why. |
+| `cancelled` | The delivery will not be sent. `errorCode` says why. |
+
+### Delivery error codes
+
+| `errorCode` | Meaning |
+| --- | --- |
+| `http_` followed by a status, such as `http_500` | Your endpoint answered with that status. |
+| `redirect` | Your endpoint answered with a redirect. Pointed does not follow redirects. |
+| `timeout` | Your endpoint did not answer within 10 seconds. |
+| `connection_failed` | Pointed could not connect to the address. |
+| `retries_exhausted` | Every attempt was used. |
+| `url_not_allowed` | The address no longer passes the address rules. |
+| `endpoint_paused`, `endpoint_disabled`, `endpoint_pending_approval` | The endpoint was not active when the delivery was due. |
+| `endpoint_was_off` | The endpoint was paused or turned off after the delivery was queued. Turning an endpoint off drops what was waiting for it. |
+| `address_changed` | The endpoint's address changed after the delivery was queued. Nothing queued for the old address is sent to the new one. |
+| `payload_removed` | The event is no longer stored. |
+| `interview_deleted` | The interview was deleted before the event was sent. |
+| `subject_deleted` | The account, its interviews or the contact were being deleted when the delivery was due. |
+| `held` | Pointed cannot send for your workspace right now. The delivery waits and is tried again every few minutes. This does not count against your endpoint. |
+| `expired_unsent` | The delivery could not be sent for three days. |
+| `signing_unavailable` | Pointed could not sign the request. It tries again. |
+| `workspace_unavailable`, `unavailable` | The workspace, the endpoint or the event is no longer available. |
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 400 | none | `limit` is not a whole number from 1 to 50, or `cursor` is longer than 4,096 characters. |
+| 404 | `WEBHOOK_NOT_FOUND` | No endpoint with that ID in your workspace. |
+
+Also the [errors on this page](#errors-on-this-page).
+
+**Example**
+
+```bash
+curl "https://app.usepointed.ai/api/cli/v1/webhook-endpoints/kx24v8n1s5t9w3y6z0b7d2g4jh/deliveries?limit=20" \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Resend a delivery
+
+```text
+POST /api/cli/v1/webhook-deliveries/{id}/resend
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential that belongs to a workspace admin.
+
+Sends a finished delivery again, to the same endpoint. The copy carries the same event ID, so a receiver that skips event IDs it has already handled ignores it. The resend appears in the log as a new delivery with `"trigger": "resend"`, or `"trigger": "test"` when the original was a test event.
+
+A delivery can be resent when all of these are true:
+
+- Its `status` is `delivered`, `failed` or `cancelled`.
+- The event is still stored. Events are kept for 30 days, and the events of a deleted interview are removed at once.
+- The endpoint is `active`. A test event can be resent to an endpoint in any status.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The delivery ID, from [List deliveries](#list-deliveries). |
+
+The route takes no body.
+
+**Response:** `202 Accepted`
+
+```json
+{
+  "data": {
+    "deliveryId": "kv31b8d5g2j9m6p3s0v7x4z1ce",
+    "eventId": "evt_5b1f0c9e7a2d4e83b6c1a4f09d2e7c55"
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `deliveryId` | string | The new delivery. |
+| `eventId` | string | The ID of the event. It is the same as in the original delivery. |
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 404 | `WEBHOOK_NOT_FOUND` | No delivery with that ID in your workspace. |
+| 409 | `WEBHOOK_CONFLICT` | The delivery is still `pending` or `sending`, the event is no longer stored, or the endpoint is not `active`. `error` says which. |
+| 429 | `WEBHOOK_RATE_LIMITED` | The workspace resent 60 deliveries this hour. |
+
+Also the [errors on this page](#errors-on-this-page).
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/webhook-deliveries/kq07f3h6k9n2q5t8w1z4c7e0ib/resend \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Errors on this page
+
+Every route on this page can return these, in addition to its own errors.
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 401 | none | The credential is missing or not valid. |
+| 403 | none | The credential lacks a scope the route needs, or the API key is organization-backed. |
+| 403 | `VENDOR_WRITE_REQUIRED` | A write route was called by a person whose workspace role is viewer. |
+| 403 | `WEBHOOK_FORBIDDEN` | The person is not a workspace admin. |
+| 403 | `WEBHOOK_UNAVAILABLE` | Webhooks are not available right now, or the workspace is suspended. Retry later, and contact Pointed if it persists. |
+| 404 | none | The ID in the path contains characters an ID cannot have. |
+
+A refusal looks like this:
+
+```json
+{
+  "error": "This workspace already has an endpoint with that address.",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18",
+    "code": "WEBHOOK_CONFLICT"
+  }
+}
+```

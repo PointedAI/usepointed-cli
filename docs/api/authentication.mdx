@@ -1,0 +1,235 @@
+---
+title: API authentication
+description: Send an OAuth access token or an API key as a bearer credential, and see which scopes and roles each kind of route needs.
+---
+
+## Send a credential
+
+Put the credential in the `Authorization` header of every request.
+
+```text
+Authorization: Bearer <credential>
+```
+
+The API accepts two kinds of credential:
+
+- **An OAuth access token** from Pointed sign-in. You get one by running `pointed auth login` in the Pointed CLI.
+- **An API key.**
+
+Both identify one Pointed workspace. Every request reads and writes that workspace only.
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/auth/whoami \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## OAuth access tokens
+
+An OAuth token must have been issued to the Pointed CLI for the API resource `https://app.usepointed.ai/api/cli`. A token issued to another application, or for another resource, is rejected with 401.
+
+`pointed auth login` asks for the scopes `pointed:read`, `pointed:write`, `pointed:evidence` and `pointed:setup`, plus `user:org:read`, which every OAuth token needs here. The token is bound to the workspace you choose when you sign in.
+
+OAuth tokens expire. They suit interactive use on your own computer. For a server or an unattended agent, use an API key.
+
+## API keys
+
+Use an API key only if you already have a Pointed-compatible API key authorized for your workspace. If you need one, [contact Pointed](https://usepointed.ai/contact?reason=general) to confirm availability and provisioning. This API has no route that creates a key.
+
+Keep the key in a secret store. The examples in this reference read it from the `POINTED_API_KEY` environment variable, the same variable the Pointed CLI reads. Do not put a key in source files, issues or chat messages.
+
+### User-backed and organization-backed keys
+
+An API key belongs either to one person in the workspace or to the workspace itself.
+
+| Kind | Acts as | Can do |
+| --- | --- | --- |
+| User-backed | That person, with their workspace role | Everything the person's role and the key's scopes allow |
+| Organization-backed | The workspace, with no person behind it | Read routes only |
+
+An OAuth token is always user-backed.
+
+These routes refuse an organization-backed key with 403:
+
+- Every route that creates, changes or deletes something, including creating interview links and sending invitation email.
+- Every [interview settings](/docs/api/interview-settings) route, including the read routes.
+- Every [webhook endpoint](/docs/api/webhook-endpoints) route, including the read routes.
+- Every [setup task and workspace](/docs/api/workspace-and-setup) route.
+
+An organization-backed key can call the read routes for accounts, contacts, campaigns and story templates, the invitation email preview, `GET /auth/whoami`, and the export routes if it has `pointed:evidence`.
+
+`GET /auth/whoami` tells you which kind you hold. See [Check a credential](#check-a-credential).
+
+## Scopes
+
+A scope is a permission carried by the credential. An OAuth token gets its scopes at sign-in. An API key gets them when it is issued.
+
+| Scope | Allows | Needed by |
+| --- | --- | --- |
+| `pointed:read` | Reading workspace data | Every route that takes a credential. No request succeeds without it. |
+| `pointed:write` | Creating, changing and deleting records | The write routes for accounts, contacts, campaigns, links, invitation email, story templates, interview settings, smart intake and webhook endpoints. |
+| `pointed:evidence` | Reading interview responses: transcripts, summaries and recordings | `GET /campaigns/{id}/export` and `GET /campaigns/{id}/responses/{responseId}/export` |
+| `pointed:setup` | Creating or selecting a workspace and running setup tasks | The `/workspace` and `/setup` routes |
+| `pointed:admin` | Routes for Pointed staff | No route in this reference |
+
+Those write routes need both `pointed:read` and `pointed:write`. An export route needs both `pointed:read` and `pointed:evidence`. The workspace and setup routes need both `pointed:read` and `pointed:setup`, and do not need `pointed:write`.
+
+Each endpoint in this reference states the scopes it needs.
+
+## Roles
+
+A user-backed credential has the workspace role of its person: admin, member or viewer. Scopes never give a person more than their role allows.
+
+| Role | Can do |
+| --- | --- |
+| Admin | Read and write. Manage webhook endpoints and setup tasks. |
+| Member | Read and write. |
+| Viewer | Read only. |
+
+A viewer cannot write, whatever scopes the token or key was granted. Pointed removes `pointed:write` from a viewer's credential when it checks it, and write routes check the role as well. A write request from a viewer returns 403.
+
+Write routes also need a workspace administrator to have accepted the current Terms of Service in the Pointed app. Until then, write requests are refused.
+
+## Authentication errors
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 401 | none | The `Authorization` header is missing or malformed, or the credential is unknown, expired, revoked, or issued for another application or resource. |
+| 403 | none | The credential lacks a scope the route needs, or does not give access to a workspace. |
+| 403 | none | The route needs a user-backed credential and the key is organization-backed. |
+| 403 | `VENDOR_WRITE_REQUIRED` | The person's workspace role is read-only. |
+| 403 | `USER_NOT_PROVISIONED` | The person has no Pointed user yet. |
+| 403 | `USER_DELETED`, `MEMBERSHIP_REVOKED` | The person's access was removed. |
+| 403 | `ORG_NOT_FOUND`, `ORG_INACTIVE`, `ORG_DELETING` | The workspace was not found, is suspended or is being deleted. |
+| 403 | `TRIAL_EXPIRED` | The workspace trial has ended. |
+| 403 | `CROSS_ORG_DENIED` | The credential's workspace is not the person's current Pointed workspace. |
+| 503 | none | Pointed could not verify the credential right now. Retry later. |
+
+A missing scope looks like this:
+
+```json
+{
+  "error": "This connection needs pointed:write. Run pointed auth login again.",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+A read-only role looks like this:
+
+```json
+{
+  "error": "Your workspace role is read-only.",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18",
+    "code": "VENDOR_WRITE_REQUIRED"
+  }
+}
+```
+
+An organization-backed key on a write route looks like this:
+
+```json
+{
+  "error": "This route requires a user-backed OAuth token or API key. Org-scoped API keys are not yet supported for this mutation.",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+The setup and workspace routes report the same failures with their own codes. See [Workspace and setup](/docs/api/workspace-and-setup).
+
+## Check a credential
+
+```text
+GET /api/cli/v1/auth/whoami
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+Returns who the credential acts as. It takes no parameters.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "userId": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "clerkUserId": "user_2rT8wQkLmN4pXzV6bYc1dEfG",
+    "clerkOrgId": "org_2rT9aBcDeFgHiJkLmNoPqRsT",
+    "email": "dana@example.com",
+    "name": "Dana Kim",
+    "role": "admin",
+    "orgName": "Brightline",
+    "tokenType": "api_key",
+    "actorType": "api_key_user",
+    "scopes": ["pointed:read", "pointed:write", "pointed:evidence"],
+    "apiKeyName": "CRM integration"
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `userId` | string or null | The Pointed user ID. `null` for an organization-backed key. |
+| `orgId` | string | The Pointed workspace ID. |
+| `clerkUserId` | string or null | The person's ID at Pointed's sign-in provider. `null` for an organization-backed key. |
+| `clerkOrgId` | string or null | The workspace's ID at Pointed's sign-in provider. |
+| `email` | string or null | The person's email. `null` for an organization-backed key. |
+| `name` | string or null | The person's name. For an organization-backed key, the key name or the workspace name. |
+| `role` | string or null | The workspace role: `admin`, `member` or `viewer`. It can carry an `org:` prefix, as in `org:admin`. `null` for an organization-backed key. |
+| `orgName` | string or null | The workspace name. |
+| `tokenType` | string | `oauth_token` or `api_key`. |
+| `actorType` | string | `oauth_user` for an OAuth token, `api_key_user` for a user-backed key, `api_key_org` for an organization-backed key. |
+| `scopes` | array of strings | The scopes the credential carries. |
+| `apiKeyName` | string or null | The name of the API key. `null` for an OAuth token. |
+
+**Errors:** the [authentication errors](#authentication-errors) above.
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/auth/whoami \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Sign-in settings for the CLI
+
+```text
+GET /api/cli/v1/auth/config
+```
+
+**Authorization:** none.
+
+Returns the sign-in server and client ID that `pointed auth login` uses. You do not need this route when you use an API key.
+
+**Response:** `200 OK`. The body is a bare object, not the standard `data` and `meta` format.
+
+```json
+{
+  "issuer": "https://auth.example.com",
+  "clientId": "client_01JEXAMPLE0000000000000000"
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `issuer` | string | The address of the sign-in server. |
+| `clientId` | string | The public client ID of the Pointed CLI. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 503 | Sign-in is not available. The body is `{"error": "CLI login is unavailable."}`. |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/auth/config
+```

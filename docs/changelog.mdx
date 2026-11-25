@@ -5,6 +5,11 @@ description: Published Pointed CLI releases and the source changes included in t
 
 ## Unreleased
 
+- `pointed webhooks`: add, test, pause and resume endpoints that receive interview events, read the delivery log, resend a delivery and rotate the signing secret. See [Webhooks](/docs/webhooks).
+- `--external-id` on `contacts create`, `update` and JSON batches, and `contacts list --external-id` to find a contact by your own ID.
+- `--reference` on `links generate` labels links with your own ID. Both are sent back in webhook events.
+- An [API reference](/docs/api/overview) for the REST API the CLI uses.
+
 - Workspace setup, reviewed setup plans, workspace agent commands, and revision-checked updates to selected unstarted interviews.
 - Editable settings and conflict details are emitted as JSON in table mode.
 - With the matching hosted API, response downloads include archived interview audio and report provider preparation failures in the manifest and exit status.

@@ -108,6 +108,20 @@ Use either `--account-ids` or `--all-accounts`; these whole-account modes cannot
 
 See the [account import guide](https://docs.usepointed.ai/docs/account-imports) and [template guide](https://docs.usepointed.ai/docs/story-templates).
 
+## Webhooks
+
+Tell your own server when an interview starts, finishes or ends early. Managing endpoints needs a credential that belongs to a workspace admin.
+
+```bash
+pointed webhooks create --url https://example.com/pointed --events interview.completed,interview.incomplete
+pointed webhooks test <endpointId> --wait
+pointed webhooks deliveries <endpointId>
+pointed contacts update <contactId> --external-id crm_8231
+pointed links generate --campaign-id <campaignId> --contact-ids <contactId> --reference user_8231
+```
+
+`create` prints the signing secret once. Your own IDs (`--external-id`, `--reference`) are sent back in every event. See the [webhooks guide](https://docs.usepointed.ai/docs/webhooks) for events, signature verification and retries, and the [API reference](https://docs.usepointed.ai/docs/api/overview) to call the API directly.
+
 ## Smart Intake
 
 Bulk-import accounts and contacts with AI-powered parsing:

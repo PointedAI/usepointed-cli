@@ -1,0 +1,345 @@
+---
+title: API overview
+description: Base URL, response format, errors, limits and a typical integration for the Pointed REST API.
+---
+
+The Pointed REST API works on the same workspace data as the Pointed app and the Pointed CLI: accounts, contacts, interviews, interview links and webhooks. Use it to connect Pointed to your CRM, your product or an AI agent.
+
+## Base URL and version
+
+```text
+https://app.usepointed.ai/api/cli/v1
+```
+
+The version is part of the path. There is no version header.
+
+Every route except `GET /api/cli/v1/auth/config` needs a bearer credential. See [Authentication](/docs/api/authentication).
+
+Request bodies are JSON objects. Send `Content-Type: application/json` with every body. The setup and workspace routes reject a body without that header.
+
+## Reference pages
+
+| Page | Covers |
+| --- | --- |
+| [Authentication](/docs/api/authentication) | Credentials, scopes, roles and `GET /auth/whoami` |
+| [Accounts](/docs/api/accounts) | Customer accounts, account context and CSV import |
+| [Contacts](/docs/api/contacts) | People at an account, `externalId` and batch create |
+| [Campaigns](/docs/api/campaigns) | An account's interviews, interview links and response exports |
+| [Invites](/docs/api/invites) | Invitation email: preview, test, send and remind |
+| [Story templates](/docs/api/story-templates) | Reusable interview templates and account enrollment |
+| [Interview settings](/docs/api/interview-settings) | Opening question, context and voice settings |
+| [Workspace and setup](/docs/api/workspace-and-setup) | Workspace status, workspace creation and setup tasks |
+| [Smart intake](/docs/api/smart-intake) | Turn pasted text into accounts and contacts |
+| [Webhook endpoints](/docs/api/webhook-endpoints) | Endpoints, signing secrets and the delivery log |
+
+For the events Pointed sends to your endpoint, see [Webhooks](/docs/webhooks).
+
+## Response format
+
+A successful response has `data` and `meta`. `data` is an object or an array, depending on the route.
+
+```json
+{
+  "data": {
+    "_id": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "name": "Acme"
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+A failed response has `error` and `meta`. `error` is a sentence written for a person.
+
+```json
+{
+  "error": "Account not found",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+Some errors also carry a stable code in `meta.code`.
+
+```json
+{
+  "error": "Your workspace role is read-only.",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18",
+    "code": "VENDOR_WRITE_REQUIRED"
+  }
+}
+```
+
+Decide what to do from the HTTP status and `meta.code`. Do not match on the text of `error`. It can change.
+
+A few routes differ from this format:
+
+- `GET /api/cli/v1/auth/config` returns a bare object with no `data` or `meta`.
+- The workspace routes put the error code in a top-level `code` field, next to `error`.
+- The setup routes add `meta.retryable` to every error.
+- `PUT /api/cli/v1/interview-settings/{kind}/{id}` answers a revision conflict with status 409 and a normal `data` object.
+
+Each endpoint in this reference shows its full path. In tables and running text, a short path such as `/accounts` is relative to the base URL.
+
+## Request IDs
+
+Every response in the standard format carries `meta.requestId`. The same value is in the `X-Request-Id` response header. Pointed generates it. You cannot supply your own.
+
+Pointed logs each write request with its request ID. Include the ID when you contact Pointed about a failed request.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| 200 | The request succeeded. |
+| 201 | A record was created: an account, contact, campaign, story template, smart intake preview or webhook endpoint. |
+| 202 | A webhook test event or resend was queued. |
+| 400 | A required field is missing or a value is not allowed. Most routes also answer 400 when the body is not a JSON object. A few answer 500 instead, and their pages say so. |
+| 401 | The credential is missing or not valid. |
+| 403 | The credential is valid but may not do this. The cause is a missing scope, a read-only role, the wrong kind of credential, or something that is not available to the workspace right now. |
+| 404 | The record was not found in your workspace. |
+| 409 | The request conflicts with what is stored. Examples: a contact with that email already exists, a webhook endpoint with that address already exists, or the record changed since you read it. |
+| 413 | A response export is too large for one response, or a setup request body is too large. |
+| 429 | A limit was reached: webhook test events, webhook resends, setup tasks or the AI assistant limit. |
+| 500 | The request could not be completed. |
+| 503 | Pointed could not verify the credential or reach a service it needs. Retry later. |
+
+A 500 always carries the same text:
+
+```json
+{
+  "error": "The request could not be completed. Try again or contact support with the request ID.",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+A 500 does not always mean a fault at Pointed. Several routes answer 500 for a problem with the request that they do not classify, such as an ID that does not exist or a contact email that the account does not accept. Each reference page lists the known cases. Check your input before you retry a 500.
+
+Every route that needs a credential can return the [authentication errors](/docs/api/authentication#authentication-errors): 401, 403 and 503. The error tables on the reference pages do not repeat all of them for every endpoint.
+
+## Error codes
+
+`meta.code` is present only on some errors.
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `VENDOR_WRITE_REQUIRED` | 403 | Your workspace role is read-only. |
+| `USER_NOT_PROVISIONED` | 403 | The person behind the credential has no Pointed user. |
+| `USER_DELETED`, `MEMBERSHIP_REVOKED` | 403 | The person's access was removed. |
+| `ORG_NOT_FOUND`, `ORG_INACTIVE`, `ORG_DELETING` | 403 | The workspace was not found, is suspended or is being deleted. |
+| `TRIAL_EXPIRED` | 403 | The workspace trial has ended. |
+| `CROSS_ORG_DENIED` | 403 | The credential belongs to a different workspace. |
+| `INVALID_REQUEST` | 400 | A value was refused. `error` says which one and why. |
+| `INTERVIEW_CHANNEL_UNAVAILABLE` | 409 | The interview has no voice channel set up, so no link or email can be produced. |
+| `TEMPLATE_SETTINGS_REQUIRED` | 409 | The opening question of this template must be changed through interview settings. |
+| `WEBHOOK_FORBIDDEN` | 403 | Only a workspace admin can manage webhooks. |
+| `WEBHOOK_UNAVAILABLE` | 403 | Webhooks are not available for this workspace. |
+| `WEBHOOK_NOT_FOUND` | 404 | The endpoint or delivery was not found. |
+| `WEBHOOK_CONFLICT` | 409 | The endpoint or delivery is not in a state that allows the request. |
+| `WEBHOOK_RATE_LIMITED` | 429 | Too many test events or resends this hour. |
+
+The setup and workspace routes use their own codes. See [Workspace and setup](/docs/api/workspace-and-setup).
+
+## Errors that carry data
+
+An error can include a `data` object with what you need to recover. Creating a contact whose email already exists on the account returns the existing contact:
+
+```json
+{
+  "error": "A contact with this email already exists on this account.",
+  "data": {
+    "duplicate": true,
+    "message": "A contact with this email already exists on this account.",
+    "contact": {
+      "_id": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+      "_creationTime": 1796135400000,
+      "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+      "name": "Sarah Lee",
+      "email": "sarah@acme.com",
+      "title": "VP Operations",
+      "externalId": "cus_8231",
+      "createdAt": 1796135400000
+    },
+    "requestedCampaignLink": null,
+    "requestedCampaignError": null,
+    "otherCampaignLinks": []
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+See [Create a contact](/docs/api/contacts#create-a-contact) for the fields.
+
+## IDs, times and fields
+
+- **IDs** are opaque strings. Do not parse them. A record's ID is in `_id`.
+- **Times** are numbers: milliseconds since 1 January 1970 UTC. `_creationTime` and `createdAt` both use this form. Webhook event bodies use ISO 8601 text instead. See [Webhooks](/docs/webhooks).
+- **Optional fields** with no value are left out of a stored record. They are not sent as `null`.
+- **Extra fields.** Many routes return the stored record. A response can contain fields that this reference does not list. Ignore them. They can change.
+
+Most routes do not check the form of an ID. An ID that is malformed, or that belongs to another kind of record, returns 500. A read route returns 404 for a well-formed ID that is not in your workspace. The webhook routes return 404 in both cases.
+
+## Limits
+
+| Limit | Value |
+| --- | --- |
+| Contacts in one batch create | 100 |
+| Contacts in one link request | 100 |
+| Contacts returned by an `externalId` lookup | 50 |
+| `externalId` and `reference` length | 200 characters |
+| CSV import | 2 MB of text, 1,000 accounts and 1,000 people |
+| Custom details on an account | 30, with a label of up to 40 characters and a value of up to 500 |
+| Account context | 12,000 characters |
+| Campaign export page | 1 to 25 responses, and 6 MiB of data |
+| Files in one response export | 64 |
+| Interview settings list and pending updates page | 1 to 25 |
+| Interview settings body | 512 KiB |
+| Webhook endpoints per workspace | 5 |
+| Webhook delivery log page | 1 to 50 |
+| Webhook test events | 20 per hour per workspace |
+| Webhook resends | 60 per hour per workspace |
+| Smart intake preview | 64 KB of text and 50 contacts per preview, 10 previews per hour per workspace |
+| Setup request body | 96 KiB |
+
+## Pagination
+
+Most list routes return the whole list. Four routes return pages:
+
+| Route | Page size parameter | Next page |
+| --- | --- | --- |
+| `GET /interview-settings` | `limit` | Send `nextCursor` as `cursor`. Stop when `nextCursor` is `null`. |
+| `GET /interview-settings/{kind}/{id}/pending-updates` | `limit` | Send `nextCursor` as `cursor`. Stop when `nextCursor` is `null`. |
+| `GET /webhook-endpoints/{id}/deliveries` | `limit` | Send `nextCursor` as `cursor`. Stop when `nextCursor` is `null`. |
+| `GET /campaigns/{id}/export` | `pageSize` | Send `continueCursor` as `cursor`. Stop when `isDone` is `true`. |
+
+A cursor is an opaque string. A page can be empty before the last page. Keep going until the route says it is done.
+
+## Retrying requests
+
+There is no idempotency key for ordinary writes. These routes are safe to repeat:
+
+- Creating a contact twice returns 409 with the existing contact. No second contact is created.
+- Creating links twice returns the same links, marked `"reused": true`, while the earlier links are still valid.
+- Creating a webhook endpoint with an address the workspace already has returns 409.
+
+Creating an account twice creates two accounts unless you send a `domain`. A domain can belong to one account only, so the second request returns 400.
+
+Smart intake previews, setup tasks and workspace creation take a request key of their own. See their pages.
+
+## A typical integration
+
+This walk-through invites one person at a customer account to an interview and learns when they finish. It uses these values: the account Acme, the contact Sarah Lee, your own user ID `cus_8231` for her, and the link label `user_8231`.
+
+### 1. Check the credential
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/auth/whoami \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+`data.orgName` is the workspace the credential acts in. `data.scopes` must include `pointed:read` and `pointed:write` for the steps below.
+
+### 2. Find or create the account
+
+List the accounts and look for the one you want by `name` or `domain`.
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/accounts \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+If it is not there, create it.
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/accounts \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme", "domain": "acme.com"}'
+```
+
+Keep `data._id`. It is the account ID.
+
+### 3. Create the contact with your own ID
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/contacts \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "name": "Sarah Lee",
+    "email": "sarah@acme.com",
+    "externalId": "cus_8231"
+  }'
+```
+
+Keep `data._id`. It is the contact ID. If the response is 409, the contact already exists and its ID is in `data.contact._id`.
+
+To check first, look the person up by your own ID:
+
+```bash
+curl "https://app.usepointed.ai/api/cli/v1/contacts?externalId=cus_8231" \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+### 4. Find the account's interviews
+
+A campaign is the set of interviews for one account.
+
+```bash
+curl "https://app.usepointed.ai/api/cli/v1/campaigns?accountId=j57a1m6c3x9z2q8w4e7r5t0y1u" \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+Keep the `_id` of the campaign you want. If the list is empty, enroll the account in a story template. Enrollment creates the account's campaign.
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/story-templates/ks91t4w7y2z5b8d3g6j0m1n4pq/enroll \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u", "contactIds": ["k17c9p4e2r8u5h3b6d1g0j7m9n"]}'
+```
+
+Then list the campaigns again.
+
+### 5. Create a link with a reference
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/campaigns/kh7b3q5n8v2c6x1z4m9l0p7s3d/links \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"contactIds": ["k17c9p4e2r8u5h3b6d1g0j7m9n"], "reference": "user_8231"}'
+```
+
+Each entry in `data.results` has a `surveyUrl` to give to the person and an `inviteId`. Creating a link does not send an email. Send the link yourself, or use the [invite email routes](/docs/api/invites).
+
+### 6. Register a webhook endpoint
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/webhook-endpoints \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/pointed", "eventTypes": ["interview.completed"]}'
+```
+
+Store `data.secret`. It is shown once. This step needs a credential that belongs to a workspace admin. You only do it once per endpoint.
+
+Register the endpoint before the person takes the interview. An endpoint receives only events that happen while it is on.
+
+### 7. Receive `interview.completed`
+
+When Sarah finishes the interview, Pointed posts an `interview.completed` event to your endpoint. You can match it to your own records in three ways:
+
+- `data.interview.id` is the `inviteId` from step 5.
+- `data.invite.reference` is `user_8231`.
+- `data.contact.external_id` is `cus_8231`.
+
+See [Webhooks](/docs/webhooks) for the event body, signature verification and retries.

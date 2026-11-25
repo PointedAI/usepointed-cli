@@ -1,0 +1,490 @@
+---
+title: Accounts
+description: List, create and update customer accounts, read account context, and import accounts with their contacts from a CSV.
+---
+
+An account is a customer organization in your Pointed workspace. Contacts and campaigns belong to an account.
+
+## The account object
+
+```json
+{
+  "_id": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+  "_creationTime": 1793610900000,
+  "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+  "name": "Acme",
+  "domain": "acme.com",
+  "industry": "Manufacturing",
+  "contractValue": 120000,
+  "renewalDate": 1806451200000,
+  "notes": "Renewal in March.",
+  "customFields": [
+    { "label": "Open opportunities", "value": "2", "updatedAt": 1793610900000 }
+  ],
+  "createdAt": 1793610900000
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `_id` | string | The account ID. |
+| `_creationTime` | number | When the record was stored, in milliseconds. |
+| `orgId` | string | Your workspace ID. |
+| `name` | string | The account name. |
+| `domain` | string | The company's web domain, such as `acme.com`. |
+| `website` | string | The company website. |
+| `industry` | string | The industry. |
+| `contractValue` | number | The contract value. |
+| `renewalDate` | number | The renewal date, in milliseconds. |
+| `notes` | string | Free text notes. |
+| `customFields` | array | Details you added. Each has `label`, `value` and `updatedAt`. |
+| `createdAt` | number | When the account was created, in milliseconds. |
+
+Only `_id`, `_creationTime`, `orgId`, `name` and `createdAt` are always present. An account can carry other fields that this reference does not list.
+
+## List accounts
+
+```text
+GET /api/cli/v1/accounts
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+Returns every account in the workspace. The route takes no parameters and does not page. To find one account, match on `name` or `domain` in the result.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "_id": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "_creationTime": 1793610900000,
+      "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+      "name": "Acme",
+      "domain": "acme.com",
+      "industry": "Manufacturing",
+      "createdAt": 1793610900000
+    }
+  ],
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors:** the [authentication errors](/docs/api/authentication#authentication-errors).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/accounts \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Create an account
+
+```text
+POST /api/cli/v1/accounts
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | The account name. |
+| `domain` | string | No | The company's web domain, such as `acme.com`. One domain can belong to one account only. |
+| `industry` | string | No | The industry. |
+| `contractValue` | number or string | No | The contract value, zero or more. A string may contain `$`, commas and spaces, as in `"$120,000"`. `revenue` is accepted as another name for this field. |
+| `renewalDate` | string or number | No | A date such as `"2027-03-31"`, or a time in milliseconds. |
+| `notes` | string | No | Free text notes. |
+| `fields` | array | No | Custom details, each `{"label": "...", "value": "..."}`. Up to 30 per account. A label has up to 40 characters and a value up to 500. |
+| `context` | string | No | Background about the account for the interviewer, up to 12,000 characters. It is saved after the account is created. |
+
+A `null` value is treated as not sent, for every field except `fields`.
+
+**Response:** `201 Created`. `data` is the new [account object](#the-account-object).
+
+```json
+{
+  "data": {
+    "_id": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "_creationTime": 1793610900000,
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "name": "Acme",
+    "domain": "acme.com",
+    "industry": "Manufacturing",
+    "contractValue": 120000,
+    "renewalDate": 1806451200000,
+    "createdAt": 1793610900000,
+    "contextRevision": 1
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+If you sent `context`, the response adds one of these:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `contextRevision` | number | The context was saved. This is its revision number. |
+| `contextError` | string | The account was created but the context was not saved. This is the reason. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, `name` is missing or empty, or a field has the wrong type. |
+| 400 | The domain is not a valid domain, or another account already uses it. `error` gives the reason. |
+| 400 | A custom detail breaks a limit. `error` gives the reason. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The request could not be completed. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/accounts \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Acme",
+    "domain": "acme.com",
+    "industry": "Manufacturing",
+    "contractValue": 120000,
+    "renewalDate": "2027-03-31",
+    "context": "Acme rolled the product out to three plants in 2026."
+  }'
+```
+
+## Get an account
+
+```text
+GET /api/cli/v1/accounts/{id}
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The account ID. |
+
+**Response:** `200 OK`. `data` is the [account object](#the-account-object).
+
+```json
+{
+  "data": {
+    "_id": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "_creationTime": 1793610900000,
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "name": "Acme",
+    "domain": "acme.com",
+    "industry": "Manufacturing",
+    "contractValue": 120000,
+    "renewalDate": 1806451200000,
+    "createdAt": 1793610900000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 404 | No account with that ID in your workspace. `error` is `Account not found`. |
+| 500 | The ID is malformed or is not an account ID. |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/accounts/j57a1m6c3x9z2q8w4e7r5t0y1u \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Update an account
+
+```text
+PATCH /api/cli/v1/accounts/{id}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Send only the fields you want to change.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The account ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | No | The account name. It cannot be empty. |
+| `domain` | string | No | The company's web domain. |
+| `website` | string | No | The company website. An empty string clears it. |
+| `industry` | string | No | The industry. An empty string clears it. |
+| `contractValue` | number or string | No | The contract value. `revenue` is accepted as another name. |
+| `renewalDate` | string or number | No | A date such as `"2027-03-31"`, or a time in milliseconds. |
+| `notes` | string | No | Free text notes. An empty string clears them. |
+| `clear` | array | No | Names of fields to empty. Allowed values: `contractValue` and `renewalDate`. Do not set and clear the same field in one request. |
+| `fields` | array | No | Custom details to set, each `{"label": "...", "value": "..."}`. A detail is matched by label, ignoring case. An empty `value` removes the detail. |
+| `context` | string | No | Replaces the account context. An empty string clears it. |
+
+A `null` value is treated as not sent, for every field except `fields` and `clear`.
+
+**Response:** `200 OK`. `data` is the updated [account object](#the-account-object). If you sent `context`, the response adds `contextRevision` or `contextError`, as in [Create an account](#create-an-account).
+
+```json
+{
+  "data": {
+    "_id": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "_creationTime": 1793610900000,
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "name": "Acme",
+    "domain": "acme.com",
+    "industry": "Manufacturing",
+    "contractValue": 150000,
+    "customFields": [
+      { "label": "Open opportunities", "value": "2", "updatedAt": 1796137200000 }
+    ],
+    "createdAt": 1793610900000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, or a field has the wrong type. |
+| 400 | A value was refused: an empty name, an invalid or already used domain, a custom detail over a limit, or a field both set and cleared. `error` gives the reason. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 404 | The account was not found, and the body changes nothing or changes only `context`. `error` is `Account not found`. |
+| 500 | The account was not found and the body changes account fields, or the ID is malformed. |
+
+**Example**
+
+```bash
+curl -X PATCH https://app.usepointed.ai/api/cli/v1/accounts/j57a1m6c3x9z2q8w4e7r5t0y1u \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contractValue": 150000,
+    "clear": ["renewalDate"],
+    "fields": [{ "label": "Open opportunities", "value": "2" }]
+  }'
+```
+
+## Get account context
+
+```text
+GET /api/cli/v1/accounts/{id}/context
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+Account context is background text about the account that the interviewer can use. Write it with `context` in [Update an account](#update-an-account).
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The account ID. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "text": "Acme rolled the product out to three plants in 2026.",
+    "revision": 1,
+    "updatedAt": 1793610900000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `text` | string | The context. An empty string if none was saved. |
+| `revision` | number | Counts saved changes. `0` if none was saved. |
+| `updatedAt` | number or null | When it was last saved, in milliseconds. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 500 | The account was not found, or the ID is malformed. |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/accounts/j57a1m6c3x9z2q8w4e7r5t0y1u/context \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Import accounts and contacts
+
+```text
+POST /api/cli/v1/accounts/import
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role. This applies to a dry run too.
+
+Reads a spreadsheet of people and their companies. People are grouped under their company. A company that is already an account is reused. Each row succeeds or fails on its own.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `csv` | string | Yes | The spreadsheet as text, with a header row. Comma separated, or tab separated if the text contains a tab. Up to 2 MB. |
+| `templateId` | string | No | A story template ID. Everyone in the file is enrolled in that template after the import. Links are prepared and no email is sent. |
+| `dryRun` | boolean | No | If `true`, nothing is saved. The response shows what the import would do. |
+
+One import can hold up to 1,000 accounts and 1,000 people.
+
+The header row needs at least one company, domain or email column. Header names are matched without regard to case, spaces or punctuation.
+
+| Column | Accepted header names |
+| --- | --- |
+| Company | `Account`, `Account name`, `Account company`, `Company`, `Company name`, `Organization`, `Organisation`, `Customer`, `Customer name` |
+| Domain | `Domain`, `Company domain`, `Company domain name`, `Website`, `Website URL`, `Company website`, `URL`, `Web` |
+| Industry | `Industry`, `Sector`, `Vertical` |
+| Email | `Email`, `Email address`, `Work email`, `Contact email`, `Email 1` |
+| Full name | `Name`, `Full name`, `Contact name`, `Contact` |
+| First name | `First name`, `First`, `Given name` |
+| Last name | `Last name`, `Last`, `Surname`, `Family name` |
+| Job title | `Title`, `Job title`, `Role`, `Position` |
+| Phone | `Phone`, `Phone number`, `Work phone`, `Mobile`, `Mobile phone`, `Direct phone`, `Telephone` |
+
+A row is grouped by its company domain when it has one. The domain comes from the domain column or, failing that, from the email address, unless the address is at a personal email service. A row with no domain is grouped by company name. A row with neither is skipped.
+
+The import does not read an `externalId` column. Set `externalId` with the [contacts routes](/docs/api/contacts).
+
+**Response to a dry run:** `200 OK`
+
+```json
+{
+  "data": {
+    "dryRun": true,
+    "usedHeaders": ["Company", "Domain", "First name", "Last name", "Email", "Job title"],
+    "skipped": [],
+    "accounts": [
+      {
+        "name": "Acme",
+        "domain": "acme.com",
+        "status": "existing",
+        "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+        "contacts": [
+          { "name": "Sarah Lee", "email": "sarah@acme.com", "title": "VP Operations" },
+          { "name": "Marco Diaz", "email": "marco@acme.com", "title": "Plant Manager" }
+        ],
+        "offDomain": 0
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `usedHeaders` | array of strings | The headers the import recognized. |
+| `skipped` | array of strings | Rows left out, each with the reason. |
+| `accounts[].status` | string | `existing` if the account is already in Pointed, otherwise `new`. |
+| `accounts[].accountId` | string | The account ID. Present for an existing account. |
+| `accounts[].contacts` | array | The people found for the account. |
+| `accounts[].offDomain` | number | How many of those people have an email outside the account's domain. |
+
+**Response to an import:** `200 OK`
+
+```json
+{
+  "data": {
+    "summary": {
+      "accountsCreated": 0,
+      "accountsExisting": 1,
+      "accountsFailed": 0,
+      "contactsCreated": 1,
+      "contactsExisting": 1,
+      "contactsFailed": 0,
+      "rowsSkipped": 0
+    },
+    "accounts": [
+      {
+        "name": "Acme",
+        "domain": "acme.com",
+        "status": "existing",
+        "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+        "contacts": [
+          { "email": "sarah@acme.com", "name": "Sarah Lee", "status": "existing", "contactId": "k17c9p4e2r8u5h3b6d1g0j7m9n" },
+          { "email": "marco@acme.com", "name": "Marco Diaz", "status": "created", "contactId": "k29d4q7e1r5u8h2b6g3j0m9n1p" }
+        ]
+      }
+    ],
+    "skipped": [],
+    "enrollment": {
+      "templateId": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+      "accountsProcessed": 1,
+      "invitesPrepared": 1,
+      "invitesAlreadyPrepared": 1,
+      "invitesWithoutLinks": 0
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `summary` | object | Counts of accounts and contacts created, already present and failed, and of rows skipped. |
+| `accounts[].status` | string | `created`, `existing` or `failed`. |
+| `accounts[].error` | string | The reason, when an account failed or its contacts could not be read. |
+| `accounts[].contacts[].status` | string | `created`, `existing` or `failed`. |
+| `accounts[].contacts[].error` | string | The reason, when a contact failed. |
+| `skipped` | array of strings | Rows left out, each with the reason. |
+| `enrollment` | object | Present when you sent `templateId`. It holds the enrollment counts, or `templateId` and `error` if enrollment failed. See [Enroll accounts](/docs/api/story-templates#enroll-accounts). |
+
+The status is 200 even when some rows fail. Read `summary` to see what happened.
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, `csv` is missing or empty, or `templateId` or `dryRun` has the wrong type. |
+| 400 | The text is over 2 MB, has no rows under its header, or has no company, domain or email column. |
+| 400 | The file holds more than 1,000 accounts or 1,000 people. |
+| 400 | `templateId` is not a story template in your workspace. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The request could not be completed. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/accounts/import \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "csv": "Company,Domain,First name,Last name,Email,Job title\nAcme,acme.com,Sarah,Lee,sarah@acme.com,VP Operations\nAcme,acme.com,Marco,Diaz,marco@acme.com,Plant Manager\n",
+    "dryRun": true
+  }'
+```

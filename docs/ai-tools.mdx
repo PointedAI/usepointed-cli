@@ -13,6 +13,8 @@ The Pointed workspace MCP server uses Streamable HTTP at `https://app.usepointed
 
 With read access you can find accounts, interviews and response progress. Preparing an interview draft requires write permission. Reading interview excerpts or cited insights requires evidence access. Pointed checks your current workspace role when you use a tool. Saving a draft leaves you in control of sending invitations.
 
+A workspace admin can also ask the assistant to set up a [webhook](/docs/webhooks), so their own system hears when an interview finishes. The assistant can save an endpoint, read its signing secret once, send test events and read the delivery log. An endpoint saved this way sends nothing about real interviews until an admin turns it on in Pointed, under **Settings → Webhooks**, where the full address is shown.
+
 If your client asks you to reconnect after a sign-in change, reconnect the Pointed account and check the workspace name again. Integration developers can discover the current authorization server and supported scopes from [Pointed’s resource metadata](https://app.usepointed.ai/.well-known/oauth-protected-resource/mcp).
 
 ## Read the documentation with an assistant

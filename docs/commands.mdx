@@ -54,6 +54,18 @@ pointed contacts update <contactId> --phone ""
 pointed contacts delete <contactId>
 ```
 
+Store your own ID for a person (a CRM or product user ID) and find them by it. It is sent back in [webhook events](/docs/webhooks) as `contact.external_id`:
+
+```bash
+pointed contacts create --account-id <accountId> --name "Jane Doe" --email jane@acme.example --external-id crm_8231
+pointed contacts update <contactId> --external-id crm_8231
+pointed contacts update <contactId> --external-id ""
+pointed contacts list --external-id crm_8231
+pointed contacts list --account-id <accountId> --external-id crm_8231
+```
+
+`list --external-id` searches every account unless `--account-id` is given. The same ID can belong to more than one contact, for example one person on two accounts. An empty `--external-id ""` clears it.
+
 Batch create contacts from JSON:
 
 ```bash
@@ -68,7 +80,8 @@ pointed contacts create-batch --account-id <accountId> --input-file contacts.jso
     "name": "Jane Doe",
     "email": "jane@example.com",
     "title": "VP Product",
-    "phone": "+1 415 555 0134"
+    "phone": "+1 415 555 0134",
+    "externalId": "crm_8231"
   }
 ]
 ```
@@ -98,9 +111,35 @@ pointed campaigns update <campaignId> --name "Updated title" --max-rounds 5
 pointed links generate --campaign-id <campaignId>
 pointed links generate --campaign-id <campaignId> --contact-ids id1,id2
 pointed links generate --campaign-id <campaignId> --contact-emails jane@example.com,john@example.com
+pointed links generate --campaign-id <campaignId> --contact-ids id1 --reference user_8231
 ```
 
+`--reference` is your own label for the links in that request, such as your user ID. It is sent back in [webhook events](/docs/webhooks) as `invite.reference`. A link that is reused takes the new reference only until its interview starts.
+
 Omitting both contact selectors includes all account contacts. An explicitly empty selector is rejected, including an empty shell variable. Link generation prints all results and exits with status 1 if any selected contact fails.
+
+## Webhooks
+
+Tell your own server when an interview starts, finishes or ends early. You need a credential that belongs to a workspace admin. See [Webhooks](/docs/webhooks) for the events, the body and signature verification.
+
+The `pointed webhooks` commands, `--external-id` and `--reference` need a CLI newer than 0.5.1. Update with `npm install -g @pointed/cli@latest`.
+
+```bash
+pointed webhooks events
+pointed webhooks create --url https://example.com/pointed --events interview.completed,interview.incomplete
+pointed webhooks list
+pointed webhooks get <endpointId>
+pointed webhooks test <endpointId> --wait
+pointed webhooks deliveries <endpointId> --limit 20
+pointed webhooks resend <deliveryId>
+pointed webhooks update <endpointId> --events interview.completed,interview.summary_ready
+pointed webhooks update <endpointId> --pause
+pointed webhooks update <endpointId> --resume
+pointed webhooks rotate-secret <endpointId>
+pointed webhooks delete <endpointId>
+```
+
+`create` and `rotate-secret` print the signing secret once, in the JSON on stdout. Store it straight away. `test --wait` sends one `webhook.test` event with sample data, waits up to `--timeout` seconds (30 by default) and exits with status 1 unless your endpoint answered `2xx`. A test event is sent once and not retried. Events that happen while an endpoint is paused are not sent when it is resumed. An endpoint saved by an AI tool is turned on by an admin in Pointed, not from the CLI.
 
 ## Invite email
 

@@ -1,0 +1,310 @@
+---
+title: Invites
+description: Preview, test, send and remind the invitation email for one interview link, and clear a delivery issue.
+---
+
+An invite is one contact's interview link. Its ID is the `inviteId` returned when you [create interview links](/docs/api/campaigns#create-interview-links). The same ID is `data.interview.id` in webhook events.
+
+Creating a link never sends email. These routes let Pointed send the invitation for you. You can also send the link yourself and skip them.
+
+The four email routes share one path. The last segment names the action: `preview`, `send-test`, `send` or `remind`. Any other value returns 404.
+
+## Preview the invitation email
+
+```text
+POST /api/cli/v1/invites/{id}/email/preview
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+Returns the email Pointed would send to the contact. Nothing is sent.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The invite ID. |
+
+The route takes no body.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "recipientEmail": "sarah@acme.com",
+    "surveyUrl": "https://app.usepointed.ai/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+    "subject": "Brightline wants to hear from you",
+    "html": "<!doctype html><html lang=\"en\"> ... </html>",
+    "text": "Hi Sarah,\n\nBrightline would like to hear about your experience. It's a short conversation with an AI interviewer that you can do whenever suits you.\n\nStart interview: https://app.usepointed.ai/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU\nAbout 5 minutes\n\nSent by Pointed on behalf of Brightline. Your answers are shared with Brightline."
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `recipientEmail` | string | The address the invitation would go to. |
+| `surveyUrl` | string | The contact's interview link. |
+| `subject` | string | The email subject. |
+| `html` | string | The whole email as HTML. The example is shortened. |
+| `text` | string | The email as plain text. |
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 400 | none | You sent a body that is not a JSON object. |
+| 409 | `INTERVIEW_CHANNEL_UNAVAILABLE` | The interview has no voice channel set up, so there is no link to show. |
+| 500 | none | The invite was not found, or the ID is malformed. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/invites/jd7f2k9x0m4q8v1n3s6t5w2y7z/email/preview \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Send a test email
+
+```text
+POST /api/cli/v1/invites/{id}/email/send-test
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Sends the invitation email to you, not to the contact. The email carries a separate test link, so the contact's own link is not used.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The invite ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `email` | string | No | Where to send the test. The default is the email of the person behind the credential. |
+
+The body is optional.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "messageId": "4b8f7a52-0c1d-4e6f-9a3b-2d5c8e7f1a90",
+    "sentTo": "dana@example.com",
+    "preview": {
+      "surveyUrl": "https://app.usepointed.ai/survey/acme/Tz7pK2wN9xQ4vB6mR1cF8hJ3dL5sG0yA",
+      "subject": "Brightline wants to hear from you",
+      "html": "<!doctype html><html lang=\"en\"> ... </html>",
+      "text": "Hi Sarah,\n\nBrightline would like to hear about your experience. It's a short conversation with an AI interviewer that you can do whenever suits you.\n\nStart interview: https://app.usepointed.ai/survey/acme/Tz7pK2wN9xQ4vB6mR1cF8hJ3dL5sG0yA\nAbout 5 minutes\n\nSent by Pointed on behalf of Brightline. Your answers are shared with Brightline."
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `messageId` | string | The ID the email service gave the message. |
+| `sentTo` | string | The address the test went to. |
+| `preview` | object | The email that was sent: `surveyUrl`, `subject`, `html` and `text`. `surveyUrl` is the test link. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, or `email` is not a string. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The invite was not found, the ID is malformed, or the email could not be sent. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/invites/jd7f2k9x0m4q8v1n3s6t5w2y7z/email/send-test \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "dana@example.com"}'
+```
+
+## Send the invitation
+
+```text
+POST /api/cli/v1/invites/{id}/email/send
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Sends the invitation email to the contact. This contacts your customer. Preview or test it first.
+
+An invite can be sent when all of these are true:
+
+- Its campaign has status `active`.
+- The invite is still pending. It has not been sent, and the contact has not opened the link or started the interview.
+- It has not expired.
+- The interview has a voice channel set up.
+- No other send for it is in progress.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The invite ID. |
+
+The route takes no body.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "messageId": "4b8f7a52-0c1d-4e6f-9a3b-2d5c8e7f1a90",
+    "sentTo": "sarah@acme.com",
+    "subject": "Brightline wants to hear from you"
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `messageId` | string | The ID the email service gave the message. |
+| `sentTo` | string | The address the invitation went to. |
+| `subject` | string | The email subject. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | You sent a body that is not a JSON object. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The invite was not found, the ID is malformed, the invite cannot be sent in its current state, or the email could not be sent. |
+
+A refused send returns 500 with the generic error text. It does not say which condition failed. Check the list above.
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/invites/jd7f2k9x0m4q8v1n3s6t5w2y7z/email/send \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Send a reminder
+
+```text
+POST /api/cli/v1/invites/{id}/email/remind
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Sends a reminder email to the contact. This contacts your customer.
+
+A reminder can be sent when all of these are true:
+
+- Its campaign has status `active`.
+- The invitation was sent before.
+- The interview is not completed.
+- The invite has not expired.
+- No other send for it is in progress.
+
+A refused reminder returns 500 with the generic error text.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The invite ID. |
+
+The route takes no body.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "messageId": "9d2e6c41-7a3b-4f85-b0c9-1e4f7a6d3b28",
+    "sentTo": "sarah@acme.com"
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `messageId` | string | The ID the email service gave the message. |
+| `sentTo` | string | The address the reminder went to. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | You sent a body that is not a JSON object. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The invite was not found, the ID is malformed, a reminder cannot be sent in its current state, or the email could not be sent. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/invites/jd7f2k9x0m4q8v1n3s6t5w2y7z/email/remind \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Clear a delivery issue
+
+```text
+POST /api/cli/v1/invites/{id}/delivery-issue/clear
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+If the email service accepted a message but Pointed could not record the result, the invite is marked with a delivery issue. Pointed then refuses to send to that invite again, so the contact does not get the same email twice. Find out whether the contact received the email, then clear the issue to allow sending again.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The invite ID. |
+
+The route takes no body.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "cleared": true
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `cleared` | boolean | `true` if a delivery issue was cleared. `false` if the invite had none. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The invite was not found, or the ID is malformed. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/invites/jd7f2k9x0m4q8v1n3s6t5w2y7z/delivery-issue/clear \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
