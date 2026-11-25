@@ -11,6 +11,7 @@ interface Contact {
   email: string;
   title?: string;
   phone?: string;
+  externalId?: string;
   createdAt: number;
 }
 
@@ -64,14 +65,18 @@ export function createContactsCommand(): Command {
 
   contacts
     .command("list")
-    .description("List contacts for an account")
-    .requiredOption("--account-id <id>", "Account ID")
-    .action(async (options: { accountId: string }) => {
+    .description("List contacts for an account, or find contacts by your own ID for them")
+    .option("--account-id <id>", "Account ID")
+    .option("--external-id <id>", "Your own ID for the person (searches every account unless --account-id is given)")
+    .action(async (options: { accountId?: string; externalId?: string }) => {
       try {
-        const res = await apiRequest<Contact[]>(
-          "GET",
-          `/contacts?accountId=${encodeId(options.accountId)}`,
-        );
+        if (options.accountId === undefined && options.externalId === undefined) {
+          throw new Error("Pass --account-id, --external-id, or both");
+        }
+        const query: Record<string, string> = {};
+        if (options.accountId !== undefined) query["accountId"] = encodeId(options.accountId);
+        if (options.externalId !== undefined) query["externalId"] = options.externalId;
+        const res = await apiRequest<Contact[]>("GET", "/contacts", undefined, query);
         printJson(res.data);
       } catch (error) {
         printError(error instanceof Error ? error.message : "Request failed");
@@ -102,6 +107,7 @@ export function createContactsCommand(): Command {
     .option("--campaign-id <id>", "Campaign ID for duplicate-contact link reuse")
     .option("--title <title>", "Job title")
     .option("--phone <phone>", "Phone number (empty clears it on update)")
+    .option("--external-id <id>", "Your own ID for this person (CRM or product user ID); sent back in webhook events")
     .action(
       async (options: {
         accountId: string;
@@ -110,6 +116,7 @@ export function createContactsCommand(): Command {
         email: string;
         title?: string;
         phone?: string;
+        externalId?: string;
       }) => {
         try {
           const res = await apiRequest<Contact>("POST", "/contacts", {
@@ -119,6 +126,7 @@ export function createContactsCommand(): Command {
             email: options.email,
             title: options.title,
             phone: options.phone,
+            externalId: options.externalId,
           });
           printJson(res.data);
         } catch (error) {
@@ -145,7 +153,7 @@ export function createContactsCommand(): Command {
     .requiredOption("--account-id <id>", "Account ID")
     .requiredOption(
       "--input-file <path>",
-      "Path to a JSON file containing an array of contacts",
+      'Path to a JSON file containing an array of contacts: [{ "name", "email", "title"?, "phone"?, "externalId"? }]',
     )
     .option("--campaign-id <id>", "Campaign ID for duplicate-contact link reuse")
     .action(
@@ -187,6 +195,7 @@ export function createContactsCommand(): Command {
     .option("--email <email>", "Contact email")
     .option("--title <title>", "Job title")
     .option("--phone <phone>", "Phone number (empty clears it on update)")
+    .option("--external-id <id>", 'Your own ID for this person; "" clears it')
     .action(
       async (
         id: string,
@@ -195,6 +204,7 @@ export function createContactsCommand(): Command {
           email?: string;
           title?: string;
           phone?: string;
+          externalId?: string;
         },
       ) => {
         try {
@@ -203,6 +213,7 @@ export function createContactsCommand(): Command {
             email: options.email,
             title: options.title,
             phone: options.phone,
+            externalId: options.externalId,
           });
           printJson(res.data);
         } catch (error) {

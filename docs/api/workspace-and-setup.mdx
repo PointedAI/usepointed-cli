@@ -1,0 +1,896 @@
+---
+title: Workspace and setup
+description: Check which workspace a credential can use, create or select a workspace, and run setup tasks that prepare an interview template with its contacts.
+---
+
+This page covers two groups of routes:
+
+- **Workspace routes** tell you whether the person behind the credential has a Pointed workspace, and create or select one.
+- **Setup task routes** take a goal in plain words, propose an interview template with accounts and contacts, and apply the plan after you approve it.
+
+Both groups need the `pointed:setup` scope and a user-backed credential. Both use an error format that differs a little from the rest of the API. Each section shows it.
+
+Either group can be turned off. Each section says what the API returns then.
+
+## Workspace routes
+
+Most integrations never call these routes. A credential that already works with the other routes has a workspace. Use them when you set up Pointed for a person who has signed in but has no workspace yet.
+
+### Workspace error format
+
+A failed workspace request puts its code in a top-level `code` field.
+
+```json
+{
+  "error": "Workspace setup requires a user-backed credential. Organization API keys cannot create or select a workspace.",
+  "code": "USER_ACTOR_REQUIRED",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Status | `code` | When |
+| --- | --- | --- |
+| 400 | `INVALID_INPUT` | The body is not valid JSON, lacks `Content-Type: application/json`, or breaks a rule in [Create or select a workspace](#create-or-select-a-workspace). |
+| 401 | `AUTH_REQUIRED` or `CLI_AUTH_DENIED` | The credential is missing or not valid. |
+| 403 | `USER_ACTOR_REQUIRED` | The API key is organization-backed. |
+| 403 | `CLI_AUTH_DENIED` | The credential lacks `pointed:setup`, or it is bound to one workspace and you asked for another. |
+| 403 | Other codes | The person cannot use the workspace. Examples: `MEMBERSHIP_NOT_FOUND`, `ORG_INACTIVE`, `EMAIL_VERIFICATION_REQUIRED`. `error` gives the reason. |
+| 409 | `IDEMPOTENCY_CONFLICT` | The `requestId` was already used with different details. |
+| 409 | `OPERATION_EXISTS` | Another workspace setup for this person is in progress. Read the status to continue it. |
+| 503 | `BOOTSTRAP_UNAVAILABLE` or `CLI_AUTH_DENIED` | Pointed could not reach a service it needs. Retry with the same `requestId`. |
+
+### Get workspace status
+
+```text
+GET /api/cli/v1/workspace/status
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential.
+
+Returns the state of the person's workspace access. It takes no parameters.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "status": "ready",
+    "memberships": [
+      { "clerkOrgId": "org_2rT9aBcDeFgHiJkLmNoPqRsT", "name": "Brightline", "role": "org:admin" }
+    ],
+    "workspace": {
+      "clerkOrgId": "org_2rT9aBcDeFgHiJkLmNoPqRsT",
+      "name": "Brightline",
+      "role": "org:admin",
+      "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c"
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | string | One of the values in the table below. |
+| `workspace` | object | The Pointed workspace. Present when `status` is `ready`. `orgId` is the workspace ID the other routes return. `clerkOrgId` is the organization's ID at Pointed's sign-in provider. |
+| `memberships` | array | The organizations the person belongs to, each with `clerkOrgId`, `name` and `role`. |
+| `selectableMemberships` | array | The memberships that can be selected as a workspace. Present for some statuses. |
+| `code` | string | A code that explains the status. Never present for `ready`. Not always present for `setup_required` or `selection_required`. |
+| `message` | string | The same explanation as text. |
+| `requestId` | string | The `requestId` of an unfinished setup. Send it again to continue. |
+| `workspaceName` | string | The name given to an unfinished workspace creation. |
+
+| `status` | Meaning | What to do |
+| --- | --- | --- |
+| `ready` | The person has a workspace. | Use the other routes. |
+| `setup_required` | The person has no workspace and belongs to no organization. | Create one with a `name`. |
+| `selection_required` | The person belongs to one or more organizations and has not chosen a workspace. | Select one from `selectableMemberships` with its `clerkOrgId`. |
+| `retryable` | A setup started earlier and did not finish. | Send the same request again with the same `requestId`. |
+| `blocked` | The person cannot use a workspace now. `code` says why. | Follow `message`. |
+| `disabled` | Creating or selecting a workspace through the API is turned off. | The API cannot set up the workspace. [Contact Pointed](https://usepointed.ai/contact?reason=general). |
+
+A credential that is bound to one workspace sees only that workspace here. An OAuth token is bound to the workspace chosen at sign-in. For such a credential, a status other than `ready` usually carries the code `OAUTH_WORKSPACE_SELECTION_REQUIRED`. Otherwise `disabled` carries `BOOTSTRAP_DISABLED`.
+
+**Errors:** see [Workspace error format](#workspace-error-format).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/workspace/status \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+### Create or select a workspace
+
+```text
+POST /api/cli/v1/workspace/bootstrap
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential.
+
+Creates a new workspace, or selects an organization the person already belongs to as their workspace.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `requestId` | string | Yes | A UUID you generate. Send the same one when you retry, so the workspace is not created twice. |
+| `name` | string | One of the two | The name of a new workspace, 1 to 100 characters. |
+| `clerkOrgId` | string | One of the two | The `clerkOrgId` of a membership to select, as returned by [Get workspace status](#get-workspace-status). |
+
+Send `name` or `clerkOrgId`, not both. The body accepts these three fields only. The request must carry `Content-Type: application/json`.
+
+A credential that is bound to one workspace can select that workspace only. It cannot create another. To create a workspace with `name`, use a credential that is not bound to a workspace yet.
+
+**Response:** `200 OK`. `data` has the same fields as [Get workspace status](#get-workspace-status).
+
+```json
+{
+  "data": {
+    "status": "ready",
+    "memberships": [
+      { "clerkOrgId": "org_2rT9aBcDeFgHiJkLmNoPqRsT", "name": "Brightline", "role": "org:admin" }
+    ],
+    "workspace": {
+      "clerkOrgId": "org_2rT9aBcDeFgHiJkLmNoPqRsT",
+      "name": "Brightline",
+      "role": "org:admin",
+      "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c"
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+The status is 200 for every outcome the route understands. Read `data.status`:
+
+- `ready`: the workspace exists and the person can use it.
+- `retryable`: the workspace could not be confirmed. Send the same request again.
+- `selection_required`: the person already belongs to an organization. Select it instead of creating a new workspace.
+- `disabled`: this route is turned off.
+- `blocked`: `code` and `message` say why.
+
+When `data.requestId` is present, it is the request key of the workspace setup. `meta.requestId` identifies this HTTP request. They are different values.
+
+**Errors:** see [Workspace error format](#workspace-error-format).
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/workspace/bootstrap \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"requestId": "7b1e4c2a-9d3f-4a6b-8c5d-2e1f0a9b8c7d", "clerkOrgId": "org_2rT9aBcDeFgHiJkLmNoPqRsT"}'
+```
+
+## Setup task routes
+
+A setup task prepares interviews from a short brief. It can do four things: create a story template, create or reuse accounts and contacts, enroll the contacts, and prepare interview links. It never sends email.
+
+A task goes through these steps:
+
+1. You create the task with a goal. Pointed drafts a plan. You can also supply your own plan.
+2. You read the task until it has a `proposal`.
+3. You review the proposal. You can replace it or change the brief.
+4. You approve the exact proposal you reviewed, by its `planDigest`.
+5. Pointed applies the plan. You read the task until it is `completed`.
+
+Every setup task route needs a credential that belongs to a workspace admin, except [Get setup capabilities](#get-setup-capabilities). A person sees only the tasks they created.
+
+Setup tasks can be turned off. [Get setup capabilities](#get-setup-capabilities) then returns `"enabled": false`, and creating or changing a task returns 503 with `meta.code` `setup_disabled`. Reading and cancelling existing tasks still work.
+
+### The setup task object
+
+```json
+{
+  "id": "kw59n2p5s8v1x4z7b0d3g6j9mf",
+  "revision": 2,
+  "status": "ready_for_review",
+  "input": {
+    "objective": "Collect ROI stories from Acme before the March renewal.",
+    "contactMaterial": "Sarah Lee, sarah@acme.com, Acme"
+  },
+  "proposal": {
+    "summary": "One interview template for ROI stories and one participant at Acme.",
+    "company": {
+      "name": "Brightline",
+      "sources": []
+    },
+    "configuration": {
+      "title": "ROI stories",
+      "audienceRole": "Account stakeholder",
+      "goal": "Capture the before-and-after story behind the results customers have seen.",
+      "initialQuestion": "What changed after you adopted the product?",
+      "questionCount": 4
+    },
+    "contacts": [
+      { "name": "Sarah Lee", "email": "sarah@acme.com", "company": "Acme", "domain": "acme.com" }
+    ]
+  },
+  "planDigest": "9f2c7a1b4d6e8035c1f7a9b2d4e6f80153a7c9e1b3d5f7092468ace0bdf13579",
+  "completedOperations": 0,
+  "totalOperations": 2,
+  "outcomes": []
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | The task ID. |
+| `revision` | number | Goes up by one with every change. Send it as `expectedRevision` in the next request. |
+| `status` | string | One of the values in the table below. |
+| `input` | object | The brief: `objective`, and `companyUrl` and `contactMaterial` when you sent them. |
+| `proposal` | object | The plan. Present once a plan exists. See [The proposal](#the-proposal). |
+| `planDigest` | string or null | A 64-character fingerprint of the plan. Send it when you approve. |
+| `completedOperations`, `totalOperations` | number | Progress. A plan has one operation for the template and one for each contact. |
+| `outcomes` | array | What has been done so far. Each entry has `kind`, `label` and sometimes `url`, a path in the Pointed app. |
+| `question` | string | What Pointed needs to know. Present when `status` is `needs_input`. |
+| `failure` | object | Present when `status` is `failed`. `message` says why. `retryable` says whether [Retry a setup task](#retry-a-setup-task) can work. |
+
+| `status` | Meaning |
+| --- | --- |
+| `drafting` | Pointed is preparing a plan. |
+| `needs_input` | Pointed needs more information. Read `question`, then update the brief. |
+| `ready_for_review` | A plan is ready. Review `proposal`, then approve it. |
+| `running` | The approved plan is being applied. |
+| `completed` | The whole plan was applied. |
+| `failed` | Drafting or applying the plan failed. Changes already made are kept. |
+| `cancelled` | The task was cancelled. Changes already made are kept. |
+
+### The proposal
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `summary` | string | Yes | A short description of the plan, up to 2,000 characters. |
+| `company.name` | string | Yes | Your company's name, up to 160 characters. |
+| `company.url` | string | No | Your company's website. |
+| `company.summary` | string | No | A short description of your company, up to 4,000 characters. |
+| `company.sources` | array of strings | Yes | Web addresses the description is based on. Up to 12. Send `[]` if there are none. |
+| `configuration.title` | string | Yes | The template title, up to 200 characters. |
+| `configuration.audienceRole` | string | Yes | The kind of person to interview, up to 200 characters. |
+| `configuration.goal` | string | Yes | What you want to learn, up to 4,000 characters. |
+| `configuration.questionCount` | integer | Yes | The number of interview rounds, from 1 to 10. |
+| `configuration.customerFacingName` | string | No | The interview name participants see. |
+| `configuration.productName` | string | No | The product the interview is about. |
+| `configuration.description` | string | No | A description. |
+| `configuration.initialQuestion` | string | No | The opening question, up to 1,000 characters. Pointed fills it in if you leave it out. |
+| `configuration.interviewChannel` | string | No | `phone`, `browser`, `browser_audio`, `browser_video` or `participant_choice`. |
+| `contacts` | array | Yes | Up to 100 people. It can be empty. |
+| `contacts[].name` | string | Yes | The person's name. |
+| `contacts[].email` | string | Yes | The person's email. Each email can appear once. |
+| `contacts[].company` | string | Yes | The person's company. It becomes the account name. |
+| `contacts[].domain` | string | No | The company's domain, such as `acme.com`. |
+
+A proposal accepts these fields only.
+
+### Setup error format
+
+A failed setup request has `meta.code` and `meta.retryable`.
+
+```json
+{
+  "error": "This setup changed. Refresh it before applying your command.",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18",
+    "code": "revision_conflict",
+    "retryable": false
+  }
+}
+```
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 400 | `invalid_input` | The body is not a JSON object, lacks `Content-Type: application/json`, has a field that is not allowed, or breaks a limit. |
+| 401 | `auth_required` | The credential is missing or not valid. |
+| 403 | `user_actor_required` | The API key is organization-backed. |
+| 403 | `workspace_required` | The person has no Pointed workspace yet. |
+| 403 | `access_denied` | The person is not a workspace admin, or the credential lacks `pointed:setup`. |
+| 404 | `not_found` | No task with that ID among the tasks this person created. |
+| 409 | `revision_conflict` | `expectedRevision` is not the task's revision. Read the task again. |
+| 409 | `request_conflict` | The request key was already used for a different request. |
+| 409 | `approval_mismatch` | The task is not ready for review, or `planDigest` is not the digest of the current proposal. |
+| 409 | `plan_integrity_failed` | The stored proposal could not be verified. Read the task again. |
+| 409 | `not_editable` | The task can no longer take a new brief or proposal. |
+| 409 | `already_terminal` | The task is already completed or cancelled. |
+| 409 | `retry_unavailable` | The task cannot be retried. |
+| 409 | `active_setup_limit` | You have three tasks that are drafting or running. Finish or cancel one. |
+| 413 | `invalid_input` | The body is over 96 KiB. |
+| 429 | `task_limit` or `setup_rate_limit` | You created too many tasks or drafts this hour. `meta.retryable` is `true`. |
+| 429 | `inference_limit` | Your AI assistant limit is reached. `error` says when it resets. |
+| 503 | `setup_disabled` | Setup tasks are turned off. |
+| 503 | `setup_unavailable` | Setup is temporarily unavailable. `meta.retryable` is `true`. Retry with the same request key. |
+
+Limits: three tasks that are drafting or running for each person, and 20 new tasks an hour for each person.
+
+### Request keys
+
+Every request that changes a task carries a key you choose: `clientRequestId` when you create a task, `requestId` for every later change. A key is 8 to 128 characters from letters, digits, `_` and `-`.
+
+If a response is lost, send the same request again with the same key. Pointed returns the task and does not apply the change twice. The same key with a different request returns 409 `request_conflict`.
+
+### Get setup capabilities
+
+```text
+GET /api/cli/v1/setup/capabilities
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential. Any workspace role.
+
+Says whether setup tasks are turned on and whether this person can use them.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "enabled": true,
+    "canManage": true,
+    "role": "org:admin",
+    "version": 1,
+    "requiredRole": "admin",
+    "commands": ["start", "list", "get", "update_input", "update_proposal", "approve", "cancel", "retry"],
+    "operations": ["create_story_template", "create_or_reuse_accounts_and_contacts", "enroll_contacts", "prepare_unsent_interview_links"],
+    "sendsEmail": false,
+    "approval": {
+      "requiresCurrentRevision": true,
+      "requiresPlanDigest": true,
+      "editsInvalidateApproval": true
+    },
+    "limits": {
+      "contacts": 100,
+      "operations": 101,
+      "attempts": 3
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | boolean | Whether setup tasks are turned on. |
+| `canManage` | boolean | Whether this person is a workspace admin. |
+| `role` | string | The person's workspace role. |
+| `requiredRole` | string | The role setup tasks need. It is `admin`. |
+| `commands` | array of strings | The commands setup tasks support. |
+| `operations` | array of strings | The things an approved plan can do. |
+| `sendsEmail` | boolean | Always `false`. A setup task does not send email. |
+| `approval` | object | The rules for approval. All three are `true`. |
+| `limits` | object | The most contacts and operations in one plan, and the most attempts for one task. |
+
+**Errors:** see [Setup error format](#setup-error-format).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/setup/capabilities \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+### List setup tasks
+
+```text
+GET /api/cli/v1/setup/tasks
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential that belongs to a workspace admin.
+
+Returns the 30 most recent tasks this person created, newest first. It takes no parameters.
+
+**Response:** `200 OK`. `data` is an array of [setup task objects](#the-setup-task-object).
+
+```json
+{
+  "data": [
+    {
+      "id": "kw59n2p5s8v1x4z7b0d3g6j9mf",
+      "revision": 1,
+      "status": "drafting",
+      "input": {
+        "objective": "Collect ROI stories from Acme before the March renewal.",
+        "contactMaterial": "Sarah Lee, sarah@acme.com, Acme"
+      },
+      "planDigest": null,
+      "completedOperations": 0,
+      "totalOperations": 0,
+      "outcomes": []
+    }
+  ],
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors:** see [Setup error format](#setup-error-format).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/setup/tasks \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+### Create a setup task
+
+```text
+POST /api/cli/v1/setup/tasks
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential that belongs to a workspace admin.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `objective` | string | Yes | What you want to learn, 1 to 8,000 characters. |
+| `clientRequestId` | string | Yes | Your [request key](#request-keys) for this task. |
+| `companyUrl` | string | No | Your company's website, starting with `http://` or `https://`. Up to 2,048 characters. |
+| `contactMaterial` | string | No | The people to interview, as text: names, emails and companies. Up to 32,000 characters. |
+| `proposal` | object | No | Your own plan, in the form of [The proposal](#the-proposal). If you send it, Pointed does not draft one. |
+
+The body accepts these fields only.
+
+Without `proposal`, the task starts as `drafting` and Pointed prepares a plan from the brief. With `proposal`, the task starts as `ready_for_review`.
+
+**Response:** `200 OK`. `data` is the new [setup task object](#the-setup-task-object).
+
+```json
+{
+  "data": {
+    "id": "kw59n2p5s8v1x4z7b0d3g6j9mf",
+    "revision": 1,
+    "status": "drafting",
+    "input": {
+      "objective": "Collect ROI stories from Acme before the March renewal.",
+      "contactMaterial": "Sarah Lee, sarah@acme.com, Acme"
+    },
+    "planDigest": null,
+    "completedOperations": 0,
+    "totalOperations": 0,
+    "outcomes": []
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors:** see [Setup error format](#setup-error-format).
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/setup/tasks \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "objective": "Collect ROI stories from Acme before the March renewal.",
+    "contactMaterial": "Sarah Lee, sarah@acme.com, Acme",
+    "clientRequestId": "setup-acme-2026-12-01"
+  }'
+```
+
+### Get a setup task
+
+```text
+GET /api/cli/v1/setup/tasks/{taskId}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential that belongs to a workspace admin.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `taskId` | string | Yes | The task ID. |
+
+**Response:** `200 OK`. `data` is the [setup task object](#the-setup-task-object).
+
+```json
+{
+  "data": {
+    "id": "kw59n2p5s8v1x4z7b0d3g6j9mf",
+    "revision": 2,
+    "status": "ready_for_review",
+    "input": {
+      "objective": "Collect ROI stories from Acme before the March renewal.",
+      "contactMaterial": "Sarah Lee, sarah@acme.com, Acme"
+    },
+    "proposal": {
+      "summary": "One interview template for ROI stories and one participant at Acme.",
+      "company": {
+        "name": "Brightline",
+        "sources": []
+      },
+      "configuration": {
+        "title": "ROI stories",
+        "audienceRole": "Account stakeholder",
+        "goal": "Capture the before-and-after story behind the results customers have seen.",
+        "initialQuestion": "What changed after you adopted the product?",
+        "questionCount": 4
+      },
+      "contacts": [
+        { "name": "Sarah Lee", "email": "sarah@acme.com", "company": "Acme", "domain": "acme.com" }
+      ]
+    },
+    "planDigest": "9f2c7a1b4d6e8035c1f7a9b2d4e6f80153a7c9e1b3d5f7092468ace0bdf13579",
+    "completedOperations": 0,
+    "totalOperations": 2,
+    "outcomes": []
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors:** see [Setup error format](#setup-error-format).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/setup/tasks/kw59n2p5s8v1x4z7b0d3g6j9mf \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+### Update a setup task
+
+```text
+PATCH /api/cli/v1/setup/tasks/{taskId}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential that belongs to a workspace admin.
+
+Changes the brief or replaces the proposal. You can do this until a plan has started to be applied. Any change gives the task a new `revision` and a new `planDigest`, so an earlier approval no longer fits.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `taskId` | string | Yes | The task ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `expectedRevision` | integer | Yes | The task's current `revision`. |
+| `requestId` | string | Yes | Your [request key](#request-keys) for this change. |
+| `input` | object | One of the two | A new brief: `objective`, and optionally `companyUrl` and `contactMaterial`. Pointed drafts a new plan from it. |
+| `proposal` | object | One of the two | Your own plan, in the form of [The proposal](#the-proposal). |
+
+Send `input` or `proposal`, not both. The body accepts these fields only.
+
+**Response:** `200 OK`. `data` is the updated [setup task object](#the-setup-task-object).
+
+```json
+{
+  "data": {
+    "id": "kw59n2p5s8v1x4z7b0d3g6j9mf",
+    "revision": 3,
+    "status": "ready_for_review",
+    "input": {
+      "objective": "Collect ROI stories from Acme before the March renewal.",
+      "contactMaterial": "Sarah Lee, sarah@acme.com, Acme"
+    },
+    "proposal": {
+      "summary": "One interview template for ROI stories and one participant at Acme.",
+      "company": {
+        "name": "Brightline",
+        "sources": []
+      },
+      "configuration": {
+        "title": "ROI stories",
+        "audienceRole": "Economic buyer",
+        "goal": "Capture the before-and-after story behind the results customers have seen.",
+        "initialQuestion": "What changed after you adopted the product?",
+        "questionCount": 4
+      },
+      "contacts": [
+        { "name": "Sarah Lee", "email": "sarah@acme.com", "company": "Acme", "domain": "acme.com" }
+      ]
+    },
+    "planDigest": "c4e1a7f03b9d2568e0a4c8f1b7d3956a2e6f0c4b8d1a7e3f5092b6c8d0e4f1a3",
+    "completedOperations": 0,
+    "totalOperations": 2,
+    "outcomes": []
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors:** see [Setup error format](#setup-error-format).
+
+**Example**
+
+```bash
+curl -X PATCH https://app.usepointed.ai/api/cli/v1/setup/tasks/kw59n2p5s8v1x4z7b0d3g6j9mf \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "expectedRevision": 2,
+    "requestId": "update-acme-0001",
+    "proposal": {
+      "summary": "One interview template for ROI stories and one participant at Acme.",
+      "company": { "name": "Brightline", "sources": [] },
+      "configuration": {
+        "title": "ROI stories",
+        "audienceRole": "Economic buyer",
+        "goal": "Capture the before-and-after story behind the results customers have seen.",
+        "initialQuestion": "What changed after you adopted the product?",
+        "questionCount": 4
+      },
+      "contacts": [
+        { "name": "Sarah Lee", "email": "sarah@acme.com", "company": "Acme", "domain": "acme.com" }
+      ]
+    }
+  }'
+```
+
+### Approve a setup task
+
+```text
+POST /api/cli/v1/setup/tasks/{taskId}/approve
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential that belongs to a workspace admin.
+
+Approves the current proposal and starts applying it. The task must have status `ready_for_review`.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `taskId` | string | Yes | The task ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `expectedRevision` | integer | Yes | The task's current `revision`. |
+| `requestId` | string | Yes | Your [request key](#request-keys) for this approval. |
+| `planDigest` | string | Yes | The `planDigest` of the proposal you reviewed. |
+
+The body accepts these fields only.
+
+**Response:** `200 OK`. `data` is the [setup task object](#the-setup-task-object), now `running`.
+
+```json
+{
+  "data": {
+    "id": "kw59n2p5s8v1x4z7b0d3g6j9mf",
+    "revision": 3,
+    "status": "running",
+    "input": {
+      "objective": "Collect ROI stories from Acme before the March renewal.",
+      "contactMaterial": "Sarah Lee, sarah@acme.com, Acme"
+    },
+    "proposal": {
+      "summary": "One interview template for ROI stories and one participant at Acme.",
+      "company": {
+        "name": "Brightline",
+        "sources": []
+      },
+      "configuration": {
+        "title": "ROI stories",
+        "audienceRole": "Account stakeholder",
+        "goal": "Capture the before-and-after story behind the results customers have seen.",
+        "initialQuestion": "What changed after you adopted the product?",
+        "questionCount": 4
+      },
+      "contacts": [
+        { "name": "Sarah Lee", "email": "sarah@acme.com", "company": "Acme", "domain": "acme.com" }
+      ]
+    },
+    "planDigest": "9f2c7a1b4d6e8035c1f7a9b2d4e6f80153a7c9e1b3d5f7092468ace0bdf13579",
+    "completedOperations": 0,
+    "totalOperations": 2,
+    "outcomes": []
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+Read the task again to follow its progress. When it is done, `status` is `completed` and `outcomes` lists what was made:
+
+```json
+[
+  {
+    "kind": "story_template",
+    "label": "Created interview template: ROI stories",
+    "url": "/dashboard#ks91t4w7y2z5b8d3g6j0m1n4pq-title"
+  },
+  {
+    "kind": "campaign",
+    "label": "Prepared Sarah Lee's interview",
+    "url": "/dashboard/campaigns/kh7b3q5n8v2c6x1z4m9l0p7s3d"
+  }
+]
+```
+
+The campaign ID is the last part of the campaign's `url`. Use it with [Create interview links](/docs/api/campaigns#create-interview-links) to get the links.
+
+**Errors:** see [Setup error format](#setup-error-format).
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/setup/tasks/kw59n2p5s8v1x4z7b0d3g6j9mf/approve \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "expectedRevision": 2,
+    "requestId": "approve-acme-0001",
+    "planDigest": "9f2c7a1b4d6e8035c1f7a9b2d4e6f80153a7c9e1b3d5f7092468ace0bdf13579"
+  }'
+```
+
+### Cancel a setup task
+
+```text
+POST /api/cli/v1/setup/tasks/{taskId}/cancel
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential that belongs to a workspace admin.
+
+Stops a task that is not completed or already cancelled. Work that has not started is dropped. Changes already made are kept.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `taskId` | string | Yes | The task ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `expectedRevision` | integer | Yes | The task's current `revision`. |
+| `requestId` | string | Yes | Your [request key](#request-keys) for this change. |
+
+The body accepts these fields only.
+
+**Response:** `200 OK`. `data` is the [setup task object](#the-setup-task-object), now `cancelled`.
+
+```json
+{
+  "data": {
+    "id": "kw59n2p5s8v1x4z7b0d3g6j9mf",
+    "revision": 3,
+    "status": "cancelled",
+    "input": {
+      "objective": "Collect ROI stories from Acme before the March renewal.",
+      "contactMaterial": "Sarah Lee, sarah@acme.com, Acme"
+    },
+    "proposal": {
+      "summary": "One interview template for ROI stories and one participant at Acme.",
+      "company": {
+        "name": "Brightline",
+        "sources": []
+      },
+      "configuration": {
+        "title": "ROI stories",
+        "audienceRole": "Account stakeholder",
+        "goal": "Capture the before-and-after story behind the results customers have seen.",
+        "initialQuestion": "What changed after you adopted the product?",
+        "questionCount": 4
+      },
+      "contacts": [
+        { "name": "Sarah Lee", "email": "sarah@acme.com", "company": "Acme", "domain": "acme.com" }
+      ]
+    },
+    "planDigest": "9f2c7a1b4d6e8035c1f7a9b2d4e6f80153a7c9e1b3d5f7092468ace0bdf13579",
+    "completedOperations": 0,
+    "totalOperations": 2,
+    "outcomes": []
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors:** see [Setup error format](#setup-error-format).
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/setup/tasks/kw59n2p5s8v1x4z7b0d3g6j9mf/cancel \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"expectedRevision": 2, "requestId": "cancel-acme-0001"}'
+```
+
+### Retry a setup task
+
+```text
+POST /api/cli/v1/setup/tasks/{taskId}/retry
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:setup`. A user-backed credential that belongs to a workspace admin.
+
+Retries a task with status `failed` whose `failure.retryable` is `true`. If the plan was approved, Pointed continues with the operations that are not done. Otherwise Pointed drafts the plan again. A task can be attempted three times.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `taskId` | string | Yes | The task ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `expectedRevision` | integer | Yes | The task's current `revision`. |
+| `requestId` | string | Yes | Your [request key](#request-keys) for this change. |
+
+The body accepts these fields only.
+
+**Response:** `200 OK`. `data` is the [setup task object](#the-setup-task-object), now `running` or `drafting`.
+
+```json
+{
+  "data": {
+    "id": "kw59n2p5s8v1x4z7b0d3g6j9mf",
+    "revision": 5,
+    "status": "running",
+    "input": {
+      "objective": "Collect ROI stories from Acme before the March renewal.",
+      "contactMaterial": "Sarah Lee, sarah@acme.com, Acme"
+    },
+    "proposal": {
+      "summary": "One interview template for ROI stories and one participant at Acme.",
+      "company": {
+        "name": "Brightline",
+        "sources": []
+      },
+      "configuration": {
+        "title": "ROI stories",
+        "audienceRole": "Account stakeholder",
+        "goal": "Capture the before-and-after story behind the results customers have seen.",
+        "initialQuestion": "What changed after you adopted the product?",
+        "questionCount": 4
+      },
+      "contacts": [
+        { "name": "Sarah Lee", "email": "sarah@acme.com", "company": "Acme", "domain": "acme.com" }
+      ]
+    },
+    "planDigest": "9f2c7a1b4d6e8035c1f7a9b2d4e6f80153a7c9e1b3d5f7092468ace0bdf13579",
+    "completedOperations": 1,
+    "totalOperations": 2,
+    "outcomes": [
+      {
+        "kind": "story_template",
+        "label": "Created interview template: ROI stories",
+        "url": "/dashboard#ks91t4w7y2z5b8d3g6j0m1n4pq-title"
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors:** see [Setup error format](#setup-error-format).
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/setup/tasks/kw59n2p5s8v1x4z7b0d3g6j9mf/retry \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"expectedRevision": 4, "requestId": "retry-acme-0001"}'
+```

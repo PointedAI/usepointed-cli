@@ -61,7 +61,24 @@
           "docs/account-imports",
           "docs/story-templates",
           "docs/smart-intake",
-          "docs/response-exports"
+          "docs/response-exports",
+          "docs/webhooks"
+        ]
+      },
+      {
+        "group": "API",
+        "pages": [
+          "docs/api/overview",
+          "docs/api/authentication",
+          "docs/api/workspace-and-setup",
+          "docs/api/accounts",
+          "docs/api/contacts",
+          "docs/api/campaigns",
+          "docs/api/invites",
+          "docs/api/story-templates",
+          "docs/api/interview-settings",
+          "docs/api/smart-intake",
+          "docs/api/webhook-endpoints"
         ]
       },
       {

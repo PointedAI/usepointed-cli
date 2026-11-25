@@ -1,0 +1,213 @@
+---
+title: Smart intake
+description: Turn pasted text such as a list, a table or CSV rows into accounts and contacts in two steps, preview and commit.
+---
+
+Smart intake reads free text and finds the people in it. It works in two steps:
+
+1. **Preview.** You send the text. Pointed returns one row for each person it found, with the account it would put them in.
+2. **Commit.** You tell Pointed what to do with each row. Pointed creates the contacts.
+
+For a spreadsheet with a header row, [Import accounts and contacts](/docs/api/accounts#import-accounts-and-contacts) is simpler and does not use AI.
+
+## Preview
+
+```text
+POST /api/cli/v1/smart-intake/preview
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Parses the text with AI and routes each person to an account. The request can take up to two minutes.
+
+A preview does not create contacts. It can create an account for a company that is not in your workspace yet. That row has the state `newly_created_account`.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `rawInput` | string | Yes | The text to read: names, emails, titles and companies in any layout. Up to 64 KB. |
+| `idempotencyKey` | string | Yes | A key you choose for this preview. |
+| `storyTemplateId` | string | No | A story template. Contacts you commit from this preview get an interview link in it. |
+
+Limits: 50 people in one preview, and 10 previews an hour for each workspace.
+
+Sending the same `idempotencyKey` with the same text and template returns the same session. It still counts toward the hourly limit. The same key with different text is refused.
+
+**Response:** `201 Created`
+
+```json
+{
+  "data": {
+    "sessionId": "kt47j0m3n6p9s2v5x8z1b4d7ge",
+    "rows": [
+      {
+        "index": 0,
+        "parsedCandidate": {
+          "email": "marco@acme.com",
+          "name": "Marco Diaz",
+          "title": "Plant Manager",
+          "domain": "acme.com",
+          "confidence": 0.98
+        },
+        "routingState": "matched_existing_account",
+        "resolvedAccountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+        "resolvedAccountName": "Acme",
+        "routingDecisionSource": "automatic",
+        "enrichmentStatus": "completed",
+        "proposedActions": ["commit", "skip", "reroute"]
+      }
+    ],
+    "summary": {
+      "matched_existing_account": 1
+    },
+    "createdAt": 1796135400000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `sessionId` | string | The preview session. Send it when you commit. |
+| `rows[].index` | number | The row number, from 0. Use it as `rowIndex` when you commit. |
+| `rows[].parsedCandidate` | object | The person Pointed read: `email`, and `name`, `title`, `domain`, `website` and `sourceText` when found. `confidence` is a number from 0 to 1. |
+| `rows[].routingState` | string | What Pointed decided about the row. See the table below. |
+| `rows[].resolvedAccountId`, `rows[].resolvedAccountName` | string | The account the person would go to. |
+| `rows[].accountCandidates` | array | The possible accounts, when more than one fits. Each has `accountId`, `accountName` and a `reason`. |
+| `rows[].routingDecisionSource` | string | How the account was chosen: `automatic`, `user_selected` or `intentional_separate`. |
+| `rows[].resolvedContactId` | string | The existing contact, when the person is already in Pointed. |
+| `rows[].conflictDetails` | object | The account and contact that already hold this email. Present when `routingState` is `cross_account_conflict`. |
+| `rows[].enrichmentStatus` | string | The state of the company lookup: `pending`, `completed`, `failed` or `not_started`. |
+| `rows[].proposedActions` | array of strings | The actions you may choose for this row when you commit. |
+| `summary` | object | The number of rows in each `routingState`. |
+| `createdAt` | number | When the session was created, in milliseconds. |
+
+Values of `routingState` and the actions each one allows:
+
+| `routingState` | Meaning | `proposedActions` |
+| --- | --- | --- |
+| `ready` | The row can be committed as it is. | `commit`, `skip`, `reroute` |
+| `matched_existing_account` | The email domain matches an account in your workspace. | `commit`, `skip`, `reroute` |
+| `newly_created_account` | Pointed created an account for this company during the preview. | `commit`, `skip`, `reroute` |
+| `personal_bucket` | The email is at a personal email service. The row goes to the account for personal emails. | `commit`, `skip`, `reroute` |
+| `multiple_account_candidates` | More than one account fits. You choose. | `reroute`, `skip`, `route_to_personal_bucket` |
+| `duplicate_same_account_reusable` | The email already exists on the same account. | `reuse_existing`, `skip` |
+| `cross_account_conflict` | The email already exists on a different account. | `reuse_existing`, `allow_cross_account_duplicate`, `reroute`, `skip`, `route_to_personal_bucket` |
+| `duplicate_input_row` | The same email appeared earlier in your text. | `skip` |
+| `invalid_input` | No valid email could be read. | `skip` |
+| `enrichment_pending`, `enrichment_failed` | The company lookup is not finished, or failed. | `commit`, `skip`, `reroute` |
+| `skipped`, `blocked` | The row is already skipped, or cannot proceed. | None |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, `rawInput` or `idempotencyKey` is missing, or `storyTemplateId` is not a string. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 429 | Your AI assistant limit is reached. `error` says when it resets. |
+| 500 | The text is over 64 KB, more than 50 people were found, the hourly preview limit is reached, the key was used with different text, or the story template was not found. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/smart-intake/preview \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rawInput": "Acme, Marco Diaz, marco@acme.com, Plant Manager",
+    "idempotencyKey": "intake-acme-2026-12-01"
+  }'
+```
+
+## Commit
+
+```text
+POST /api/cli/v1/smart-intake/commit
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Applies your decision for each row of a preview session.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `sessionId` | string | Yes | The `sessionId` from the preview. |
+| `resolutions` | array | Yes | One entry for each row you want to act on. |
+| `resolutions[].rowIndex` | number | Yes | The row's `index`. |
+| `resolutions[].action` | string | Yes | One of the actions below. |
+| `resolutions[].targetAccountId` | string | No | The account to put the person in. Needed for `reroute`. |
+
+| `action` | What it does |
+| --- | --- |
+| `commit` | Creates the contact on the account Pointed chose. |
+| `skip` | Leaves the row out. |
+| `reroute` | Creates the contact on the account in `targetAccountId`. |
+| `reuse_existing` | Uses the contact that already exists and creates nothing. |
+| `route_to_personal_bucket` | Puts the contact in the account for personal emails. |
+| `allow_cross_account_duplicate` | Creates the contact even though the email exists on another account. |
+
+Rows you leave out stay open. You can commit them in a later request with the same `sessionId`.
+
+**Response:** `200 OK`. The status is 200 even when some rows fail.
+
+```json
+{
+  "data": {
+    "results": [
+      {
+        "rowIndex": 0,
+        "status": "created",
+        "contactId": "k29d4q7e1r5u8h2b6g3j0m9n1p",
+        "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+        "preparedLinks": []
+      }
+    ],
+    "summary": {
+      "created": 1,
+      "reused": 0,
+      "skipped": 0,
+      "blocked": 0,
+      "error": 0,
+      "preparedLinkCount": 0,
+      "autoIncludeLinkCount": 0
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `results[].rowIndex` | number | The row. |
+| `results[].status` | string | `created`, `reused`, `skipped`, `blocked` or `error`. `blocked` means the row needs a different action. |
+| `results[].contactId`, `results[].accountId` | string | The contact and its account. Present for `created` and `reused`. |
+| `results[].error` | string | The reason. Present for `blocked` and `error`. |
+| `results[].preparedLinks` | array | The interview links prepared for the contact. Each has `inviteId`, `campaignId`, `campaignTitle`, `accountId`, `contactId` and `surveyUrl`. |
+| `summary` | object | The number of rows in each `status`. `preparedLinkCount` is the number of links in `preparedLinks`. `autoIncludeLinkCount` is the number of links prepared because the account adds new contacts to a story template automatically. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, `sessionId` is missing, `resolutions` is not an array, or an entry has no numeric `rowIndex`, an unknown `action` or a `targetAccountId` that is not a string. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The session was not found, belongs to another workspace or is already fully committed, or an ID is malformed. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/smart-intake/commit \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "kt47j0m3n6p9s2v5x8z1b4d7ge",
+    "resolutions": [{ "rowIndex": 0, "action": "commit" }]
+  }'
+```

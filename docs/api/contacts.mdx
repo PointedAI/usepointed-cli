@@ -1,0 +1,495 @@
+---
+title: Contacts
+description: List, look up, create, update and delete the people at an account, and attach your own ID to each one with externalId.
+---
+
+A contact is a person at one account. Each contact can carry `externalId`, your own ID for that person. Pointed stores it as given and sends it back in webhook events as `contact.external_id`. See [Your own IDs](/docs/webhooks#your-own-ids).
+
+## The contact object
+
+```json
+{
+  "_id": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+  "_creationTime": 1796135400000,
+  "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+  "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+  "name": "Sarah Lee",
+  "email": "sarah@acme.com",
+  "title": "VP Operations",
+  "phone": "+1 415 555 0134",
+  "externalId": "cus_8231",
+  "createdAt": 1796135400000
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `_id` | string | The contact ID. |
+| `_creationTime` | number | When the record was stored, in milliseconds. |
+| `accountId` | string | The account the contact belongs to. |
+| `orgId` | string | Your workspace ID. |
+| `name` | string | The person's name. |
+| `email` | string | The person's email. |
+| `title` | string | The job title. Left out when not set. |
+| `phone` | string | The phone number. Left out when not set. |
+| `externalId` | string | Your own ID for the person. Left out when not set. |
+| `createdAt` | number | When the contact was created, in milliseconds. |
+
+A contact can carry other fields that this reference does not list.
+
+### Rules for `externalId`
+
+- Plain text, up to 200 characters, with no line breaks or control characters.
+- Spaces at the start and end are removed.
+- It does not have to be unique. The same person can be a contact on several accounts.
+- Pointed does not interpret it.
+
+## List or look up contacts
+
+```text
+GET /api/cli/v1/contacts
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+**Query parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | string | One of the two | Return the contacts of this account. |
+| `externalId` | string | One of the two | Return the contacts that carry this external ID. |
+
+How the two combine:
+
+| You send | You get |
+| --- | --- |
+| `accountId` | Every contact of that account. An empty list if the account is not in your workspace. |
+| `externalId` | Every contact in the workspace with that external ID, across accounts. At most 50. |
+| Both | The contacts of that account that have that external ID. |
+| Neither | A 400 error. |
+
+**Response:** `200 OK`. `data` is an array of [contact objects](#the-contact-object).
+
+```json
+{
+  "data": [
+    {
+      "_id": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+      "_creationTime": 1796135400000,
+      "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+      "name": "Sarah Lee",
+      "email": "sarah@acme.com",
+      "title": "VP Operations",
+      "externalId": "cus_8231",
+      "createdAt": 1796135400000
+    }
+  ],
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | Neither `accountId` nor `externalId` was sent. |
+| 400 | `externalId` was sent alone and breaks the [rules](#rules-for-externalid). `error` gives the reason. |
+| 500 | `accountId` is malformed or is not an account ID. |
+
+**Example**
+
+```bash
+curl "https://app.usepointed.ai/api/cli/v1/contacts?externalId=cus_8231" \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Create a contact
+
+```text
+POST /api/cli/v1/contacts
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | string | Yes | The account to add the person to. |
+| `name` | string | Yes | The person's name. |
+| `email` | string | Yes | The person's email. An account cannot hold two contacts with the same email. Case is ignored. |
+| `title` | string | No | The job title. |
+| `phone` | string | No | A phone number with 7 to 15 digits, such as `+1 415 555 0134`. |
+| `externalId` | string | No | Your own ID for the person. See the [rules](#rules-for-externalid). |
+| `campaignId` | string | No | Used only when the contact already exists. Pointed then finds or creates that contact's interview link for this campaign and returns it in the 409 response. |
+
+If the account is enrolled in a story template that adds new contacts automatically, Pointed prepares an interview link for the new contact in that template. See [Story templates](/docs/api/story-templates).
+
+**Response:** `201 Created`. `data` is the new [contact object](#the-contact-object).
+
+```json
+{
+  "data": {
+    "_id": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+    "_creationTime": 1796135400000,
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "name": "Sarah Lee",
+    "email": "sarah@acme.com",
+    "title": "VP Operations",
+    "externalId": "cus_8231",
+    "createdAt": 1796135400000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | `accountId`, `name` or `email` is missing or is not a string. |
+| 400 | `title`, `phone`, `externalId` or `campaignId` is not a string. |
+| 400 | `phone` or `externalId` breaks its rule. `error` gives the reason. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 409 | A contact with this email already exists on the account. The response carries `data`, shown below. |
+| 500 | The body is not valid JSON, the account was not found, or Pointed refused the email address for this account. |
+
+A 409 returns the existing contact, so you do not need a second request to find it:
+
+```json
+{
+  "error": "A contact with this email already exists on this account.",
+  "data": {
+    "duplicate": true,
+    "message": "A contact with this email already exists on this account.",
+    "contact": {
+      "_id": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+      "_creationTime": 1796135400000,
+      "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+      "name": "Sarah Lee",
+      "email": "sarah@acme.com",
+      "title": "VP Operations",
+      "externalId": "cus_8231",
+      "createdAt": 1796135400000
+    },
+    "requestedCampaignLink": {
+      "campaignId": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+      "campaignTitle": "Customer stories",
+      "inviteId": "jd7f2k9x0m4q8v1n3s6t5w2y7z",
+      "token": "Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+      "surveyUrl": "https://app.usepointed.ai/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+      "status": "pending",
+      "expiresAt": 1798729200000,
+      "isExpired": false
+    },
+    "requestedCampaignError": null,
+    "otherCampaignLinks": []
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `duplicate` | boolean | Always `true`. |
+| `message` | string | The same text as `error`. |
+| `contact` | object | The existing contact. |
+| `requestedCampaignLink` | object or null | The contact's link for the `campaignId` you sent. `null` if you sent none or the link could not be produced. |
+| `requestedCampaignError` | string or null | Why the link for `campaignId` could not be produced. |
+| `otherCampaignLinks` | array | The contact's links in other campaigns, in the same form. |
+
+A link has `campaignId`, `campaignTitle`, `inviteId`, `token`, `surveyUrl`, `status`, `expiresAt` in milliseconds and `isExpired`.
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/contacts \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "name": "Sarah Lee",
+    "email": "sarah@acme.com",
+    "title": "VP Operations",
+    "externalId": "cus_8231"
+  }'
+```
+
+## Get a contact
+
+```text
+GET /api/cli/v1/contacts/{id}
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The contact ID. |
+
+**Response:** `200 OK`. `data` is the [contact object](#the-contact-object).
+
+```json
+{
+  "data": {
+    "_id": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+    "_creationTime": 1796135400000,
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "name": "Sarah Lee",
+    "email": "sarah@acme.com",
+    "title": "VP Operations",
+    "externalId": "cus_8231",
+    "createdAt": 1796135400000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 404 | No contact with that ID in your workspace. `error` is `Contact not found`. |
+| 500 | The ID is malformed or is not a contact ID. |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/contacts/k17c9p4e2r8u5h3b6d1g0j7m9n \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Update a contact
+
+```text
+PATCH /api/cli/v1/contacts/{id}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Send only the fields you want to change.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The contact ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | No | The person's name. |
+| `email` | string | No | The person's email. It must not match another contact on the same account. |
+| `title` | string | No | The job title. An empty string clears it. |
+| `phone` | string | No | The phone number. An empty string clears it. |
+| `externalId` | string | No | Your own ID for the person. An empty string clears it. |
+
+**Response:** `200 OK`. `data` is the updated [contact object](#the-contact-object).
+
+```json
+{
+  "data": {
+    "_id": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+    "_creationTime": 1796135400000,
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "name": "Sarah Lee",
+    "email": "sarah@acme.com",
+    "title": "VP Operations",
+    "externalId": "cus_8231",
+    "createdAt": 1796135400000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, or a field is not a string. |
+| 400 | `phone` or `externalId` breaks its rule. `error` gives the reason. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 409 | Another contact on the account already has that email. |
+| 500 | The contact was not found, the ID is malformed, or Pointed refused the new email address. An email cannot be changed while the contact has an open invitation addressed to the old one. |
+
+**Example**
+
+```bash
+curl -X PATCH https://app.usepointed.ai/api/cli/v1/contacts/k17c9p4e2r8u5h3b6d1g0j7m9n \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"externalId": "cus_8231"}'
+```
+
+## Delete a contact
+
+```text
+DELETE /api/cli/v1/contacts/{id}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Deleting a contact revokes the contact's interview links that are not completed. A contact that has interview responses cannot be deleted.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The contact ID. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "deleted": true
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 409 | The contact has interview responses. |
+| 500 | The contact was not found, or the ID is malformed. |
+
+**Example**
+
+```bash
+curl -X DELETE https://app.usepointed.ai/api/cli/v1/contacts/k17c9p4e2r8u5h3b6d1g0j7m9n \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Create contacts in a batch
+
+```text
+POST /api/cli/v1/contacts/batch
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Creates up to 100 contacts on one account. Each contact succeeds or fails on its own.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | string | Yes | The account to add the people to. |
+| `contacts` | array | Yes | 1 to 100 contacts. |
+| `contacts[].name` | string | Yes | The person's name. |
+| `contacts[].email` | string | Yes | The person's email. |
+| `contacts[].title` | string | No | The job title. |
+| `contacts[].phone` | string | No | A phone number with 7 to 15 digits. |
+| `contacts[].externalId` | string | No | Your own ID for the person. See the [rules](#rules-for-externalid). |
+| `campaignId` | string | No | Used only for contacts that already exist. Their result then includes the link for this campaign, as in [Create a contact](#create-a-contact). |
+
+**Response:** `200 OK`. The status is 200 even when some contacts fail.
+
+```json
+{
+  "data": {
+    "requested": 2,
+    "created": 1,
+    "existing": 1,
+    "failed": 0,
+    "results": [
+      {
+        "index": 0,
+        "status": "existing",
+        "message": "A contact with this email already exists on this account.",
+        "contact": {
+          "_id": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+          "_creationTime": 1796135400000,
+          "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+          "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+          "name": "Sarah Lee",
+          "email": "sarah@acme.com",
+          "title": "VP Operations",
+          "externalId": "cus_8231",
+          "createdAt": 1796135400000
+        },
+        "requestedCampaignLink": null,
+        "requestedCampaignError": null,
+        "otherCampaignLinks": [],
+        "input": { "name": "Sarah Lee", "email": "sarah@acme.com", "title": null }
+      },
+      {
+        "index": 1,
+        "status": "created",
+        "contact": {
+          "_id": "k29d4q7e1r5u8h2b6g3j0m9n1p",
+          "_creationTime": 1796137200000,
+          "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+          "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+          "name": "Marco Diaz",
+          "email": "marco@acme.com",
+          "externalId": "cus_8232",
+          "createdAt": 1796137200000
+        }
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `requested` | number | How many contacts you sent. |
+| `created`, `existing`, `failed` | number | How many ended in each state. |
+| `results[].index` | number | The position of the contact in your `contacts` array, from 0. |
+| `results[].status` | string | `created`, `existing` or `error`. |
+| `results[].contact` | object | The new or existing contact. Present for `created` and `existing`. |
+| `results[].error` | string | The reason. Present for `error`. |
+| `results[].input` | object | The `name`, `email` and `title` you sent. Present for `existing` and `error`. |
+
+An `existing` result also has `message`, `requestedCampaignLink`, `requestedCampaignError` and `otherCampaignLinks`, as in [Create a contact](#create-a-contact).
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | `accountId` is missing, `contacts` is not an array, `contacts` is empty or holds more than 100 entries, or `campaignId` is not a string. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 404 | The account was not found. `error` is `account not found`. |
+| 500 | The body is not valid JSON, or `accountId` is malformed. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/contacts/batch \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "contacts": [
+      { "name": "Sarah Lee", "email": "sarah@acme.com", "externalId": "cus_8231" },
+      { "name": "Marco Diaz", "email": "marco@acme.com", "externalId": "cus_8232" }
+    ]
+  }'
+```

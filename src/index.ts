@@ -16,6 +16,7 @@ import { createAdminCommand } from "./commands/admin.js";
 import { createAgentCommand } from "./commands/agent.js";
 import { createSetupCommand } from "./commands/setup.js";
 import { createWorkspaceCommand } from "./commands/workspace.js";
+import { createWebhooksCommand } from "./commands/webhooks.js";
 
 const program = new Command();
 
@@ -39,6 +40,7 @@ program.addCommand(createResponsesCommand());
 program.addCommand(createStoryTemplatesCommand());
 program.addCommand(createInvitesCommand());
 program.addCommand(createSmartIntakeCommand());
+program.addCommand(createWebhooksCommand());
 
 program.addCommand(createInterviewsCommand());
 program.addCommand(createAdminCommand());
@@ -59,6 +61,11 @@ Accounts and people:
   pointed accounts update <id> --field "Open opportunities=2" --context "What the interviewer should know"
   pointed accounts update <id> --industry Logistics --clear renewal-date
   pointed contacts create --account-id <id> --name "Jordan Lee" --email jordan@acme.com --phone "+1 415 555 0134"
+
+Tell your own system when an interview finishes:
+  pointed webhooks create --url https://example.com/pointed --events interview.completed,interview.incomplete
+  pointed webhooks test <endpointId> --wait                # sends sample data and prints the result
+  pointed links generate --campaign-id <id> --contact-ids <id> --reference user_8231   # echoed in every event
 `,
 );
 

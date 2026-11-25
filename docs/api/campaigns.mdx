@@ -1,0 +1,750 @@
+---
+title: Campaigns
+description: Find an account's interviews, create interview links with your own reference, and export interview responses.
+---
+
+A campaign is the set of interviews for one account. Its contacts share one brief: a title, context for the interviewer and an opening question. Each contact gets their own interview link.
+
+A campaign is created in one of two ways:
+
+- You enroll an account in a story template. Pointed creates the account's campaign from the template. See [Enroll accounts](/docs/api/story-templates#enroll-accounts).
+- You create one directly with [Create a campaign](#create-a-campaign).
+
+## The campaign object
+
+```json
+{
+  "_id": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+  "_creationTime": 1795183500000,
+  "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+  "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+  "storyTemplateId": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+  "title": "Customer stories",
+  "context": "Capture the before-and-after story behind the results Acme has seen.",
+  "initialQuestion": "What changed after you adopted the product?",
+  "maxRounds": 4,
+  "status": "active",
+  "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+  "createdAt": 1795183500000
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `_id` | string | The campaign ID. |
+| `_creationTime` | number | When the record was stored, in milliseconds. |
+| `orgId` | string | Your workspace ID. |
+| `accountId` | string | The account the campaign belongs to. |
+| `storyTemplateId` | string | The story template the campaign came from. Left out for a campaign created directly. |
+| `title` | string | The title. |
+| `description` | string | A description. Left out when not set. |
+| `context` | string | Background for the interviewer. |
+| `initialQuestion` | string | The opening question. |
+| `maxRounds` | number | The number of interview rounds: the opening question plus the follow-ups. |
+| `status` | string | `draft` for a campaign created with this API. `active` for a campaign created by enrolling an account in a story template. Other values exist, such as `completed`. |
+| `createdBy` | string | The Pointed user who created it. |
+| `createdAt` | number | When the campaign was created, in milliseconds. |
+
+A campaign can carry other fields that this reference does not list.
+
+## List campaigns
+
+```text
+GET /api/cli/v1/campaigns
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+**Query parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | string | No | Return only this account's campaigns. Without it, the route returns every campaign in the workspace. |
+
+**Response:** `200 OK`. `data` is an array of [campaign objects](#the-campaign-object). The list is empty if the account is not in your workspace.
+
+```json
+{
+  "data": [
+    {
+      "_id": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+      "_creationTime": 1795183500000,
+      "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+      "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "storyTemplateId": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+      "title": "Customer stories",
+      "context": "Capture the before-and-after story behind the results Acme has seen.",
+      "initialQuestion": "What changed after you adopted the product?",
+      "maxRounds": 4,
+      "status": "active",
+      "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+      "createdAt": 1795183500000
+    }
+  ],
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 500 | `accountId` is malformed or is not an account ID. |
+
+**Example**
+
+```bash
+curl "https://app.usepointed.ai/api/cli/v1/campaigns?accountId=j57a1m6c3x9z2q8w4e7r5t0y1u" \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Create a campaign
+
+```text
+POST /api/cli/v1/campaigns
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Creates a campaign with status `draft`. Creating a campaign does not create links, send email or start an interview.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | string | Yes | The account the campaign is for. |
+| `title` | string | Yes | The title. |
+| `context` | string | Yes | Background for the interviewer: what you want to learn. |
+| `initialQuestion` | string | Yes | The opening question. |
+| `description` | string | No | A description. |
+| `maxRounds` | number | No | The number of interview rounds. The default is 4. |
+
+**Response:** `201 Created`. `data` is the new [campaign object](#the-campaign-object).
+
+```json
+{
+  "data": {
+    "_id": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+    "_creationTime": 1795183500000,
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "title": "Customer stories",
+    "context": "Capture the before-and-after story behind the results Acme has seen.",
+    "initialQuestion": "What changed after you adopted the product?",
+    "maxRounds": 4,
+    "status": "draft",
+    "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+    "createdAt": 1795183500000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | `accountId`, `title`, `context` or `initialQuestion` is missing or is not a string. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The body is not valid JSON, the account was not found, or `description` or `maxRounds` has the wrong type. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/campaigns \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "title": "Customer stories",
+    "context": "Capture the before-and-after story behind the results Acme has seen.",
+    "initialQuestion": "What changed after you adopted the product?"
+  }'
+```
+
+## Get a campaign
+
+```text
+GET /api/cli/v1/campaigns/{id}
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The campaign ID. |
+
+**Response:** `200 OK`. `data` is the [campaign object](#the-campaign-object).
+
+```json
+{
+  "data": {
+    "_id": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+    "_creationTime": 1795183500000,
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "storyTemplateId": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+    "title": "Customer stories",
+    "context": "Capture the before-and-after story behind the results Acme has seen.",
+    "initialQuestion": "What changed after you adopted the product?",
+    "maxRounds": 4,
+    "status": "active",
+    "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+    "createdAt": 1795183500000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 404 | No campaign with that ID in your workspace. `error` is `Account interviews not found`. |
+| 500 | The ID is malformed or is not a campaign ID. |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/campaigns/kh7b3q5n8v2c6x1z4m9l0p7s3d \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Update a campaign
+
+```text
+PATCH /api/cli/v1/campaigns/{id}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Only a campaign with status `draft` can be changed. Send only the fields you want to change.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The campaign ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `title` | string | No | The title. |
+| `description` | string | No | A description. |
+| `context` | string | No | Background for the interviewer. |
+| `initialQuestion` | string | No | The opening question. |
+| `maxRounds` | number | No | The number of interview rounds. |
+
+**Response:** `200 OK`. `data` is the updated [campaign object](#the-campaign-object).
+
+```json
+{
+  "data": {
+    "_id": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+    "_creationTime": 1795183500000,
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "title": "Customer stories",
+    "context": "Capture the before-and-after story behind the results Acme has seen.",
+    "initialQuestion": "What changed after you adopted the product?",
+    "maxRounds": 5,
+    "status": "draft",
+    "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+    "createdAt": 1795183500000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The body is not valid JSON, a field has the wrong type, the campaign was not found, or the campaign is not a draft. |
+
+**Example**
+
+```bash
+curl -X PATCH https://app.usepointed.ai/api/cli/v1/campaigns/kh7b3q5n8v2c6x1z4m9l0p7s3d \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"maxRounds": 5}'
+```
+
+## Create interview links
+
+```text
+POST /api/cli/v1/campaigns/{id}/links
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Creates one interview link for each selected contact on the campaign's account. A link is personal to its contact. Creating a link does not send email.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The campaign ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `contactIds` | array of strings | No | The contacts to create links for, by ID. 1 to 100 entries. |
+| `contactEmails` | array of strings | No | The contacts to create links for, by email. 1 to 100 entries. Case is ignored. |
+| `reference` | string | No | Your own label for every link in this request, such as a user ID or an order number. Up to 200 characters, with no line breaks or control characters. |
+
+Send `contactIds` or `contactEmails`, not both. Send neither to create links for every contact on the account. The route needs a JSON body in every case, so send `{}` when you select no one.
+
+How links behave:
+
+- A new link is valid for 30 days.
+- If the contact already has a valid link for this campaign, Pointed returns that link with `"reused": true` and creates nothing.
+- `reference` comes back in webhook events as `invite.reference`. See [Your own IDs](/docs/webhooks#your-own-ids).
+- When a link is reused, a `reference` in the request replaces the stored one until the interview starts. After the interview starts, the stored reference stays. A request without `reference` leaves the stored one as it is.
+
+**Response:** `200 OK`. The status is 200 even when some contacts fail.
+
+```json
+{
+  "data": {
+    "requested": 1,
+    "succeeded": 1,
+    "failed": 0,
+    "results": [
+      {
+        "index": 0,
+        "contactId": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+        "status": "success",
+        "contactName": "Sarah Lee",
+        "contactEmail": "sarah@acme.com",
+        "accountName": "Acme",
+        "token": "Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+        "inviteId": "jd7f2k9x0m4q8v1n3s6t5w2y7z",
+        "reference": "user_8231",
+        "reused": false,
+        "surveyUrl": "https://app.usepointed.ai/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU"
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+A contact that fails has an entry like this in `results`, and counts toward `failed`:
+
+```json
+{
+  "index": 1,
+  "contactId": "k84m1t6x3b9q2w7e5r0y8u4i6o",
+  "status": "error",
+  "error": "contact not found on this account or not authorized"
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `requested` | number | How many contacts were selected. |
+| `succeeded`, `failed` | number | How many links were returned and how many contacts failed. |
+| `results[].index` | number | The position of the contact in your `contactIds` or `contactEmails` array, from 0. |
+| `results[].status` | string | `success` or `error`. |
+| `results[].contactId` | string | The contact ID. An empty string when an email did not match a contact. |
+| `results[].contactName`, `results[].contactEmail`, `results[].accountName` | string | The person and account the link was issued to. |
+| `results[].surveyUrl` | string | The link to give to the contact. |
+| `results[].token` | string | The secret part of the link. |
+| `results[].inviteId` | string | The ID of this interview. It is `data.interview.id` in webhook events and the ID the [invite routes](/docs/api/invites) take. |
+| `results[].reference` | string or null | The reference now stored on the link. |
+| `results[].reused` | boolean | `true` if the link already existed. |
+| `results[].error` | string | The reason. Present for `error`. |
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 400 | none | `reference` is not a string, both `contactIds` and `contactEmails` were sent, or the one you sent is not an array, is empty or holds more than 100 entries. |
+| 400 | `INVALID_REQUEST` | `reference` is too long or contains a line break or control character. |
+| 403 | none | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 404 | none | You sent `contactIds` or `contactEmails` and the campaign was not found. |
+| 409 | `INTERVIEW_CHANNEL_UNAVAILABLE` | The interview has no voice channel set up. No link is created for anyone in the request. Set up browser or phone interviews in Pointed first. |
+| 500 | none | The body is missing or is not valid JSON, the campaign was not found and you selected no contacts, or the account has no contacts. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/campaigns/kh7b3q5n8v2c6x1z4m9l0p7s3d/links \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"contactIds": ["k17c9p4e2r8u5h3b6d1g0j7m9n"], "reference": "user_8231"}'
+```
+
+## The response bundle
+
+Both export routes return interview responses as bundles. A bundle holds one contact's interview: the questions, the transcripts, the summary and the state of the recordings.
+
+```json
+{
+  "exportVersion": 1,
+  "exportedAt": "2026-12-03T17:20:00.000Z",
+  "response": {
+    "_id": "kr38h6b1d9g4j7m2n5p0s3v8xc",
+    "status": "completed",
+    "currentRound": 1,
+    "aiSummary": "Sarah described how Acme cut its monthly close from ten days to four.",
+    "sentimentScore": 0.8,
+    "sentiment": "positive",
+    "createdAt": 1796316902000,
+    "completedAt": 1796317391000
+  },
+  "contact": {
+    "name": "Sarah Lee",
+    "email": "sarah@acme.com",
+    "title": "VP Operations"
+  },
+  "campaign": {
+    "_id": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+    "title": "Customer stories",
+    "description": null,
+    "initialQuestion": "What changed after you adopted the product?",
+    "maxRounds": 4,
+    "status": "active"
+  },
+  "rounds": [
+    {
+      "roundNumber": 1,
+      "questionText": "What changed after you adopted the product?",
+      "transcript": "We cut our monthly close from ten days to four.",
+      "transcriptionStatus": "completed",
+      "videoStatus": "not_required",
+      "muxPlaybackId": null,
+      "muxAssetId": null,
+      "muxAssetStatus": null,
+      "muxMasterAccess": null,
+      "muxMasterStatus": null,
+      "muxErrorMessage": null,
+      "videoDurationSecs": null
+    }
+  ],
+  "media": {
+    "version": "legacy_round_v1",
+    "protocolVersion": 1,
+    "responseId": "kr38h6b1d9g4j7m2n5p0s3v8xc",
+    "logicalDurationMs": 0,
+    "segments": [
+      {
+        "segmentId": "legacy-round:kp52f8h1k4n7q0t3w6z9c2e5ib",
+        "sequence": 1,
+        "roundId": "kp52f8h1k4n7q0t3w6z9c2e5ib",
+        "state": "not_required",
+        "logicalStartMs": 0,
+        "logicalEndMs": 0,
+        "durationMs": 0,
+        "muxAssetId": null,
+        "muxPlaybackId": null,
+        "muxPlaybackPolicy": null
+      }
+    ],
+    "markers": [
+      {
+        "roundId": "kp52f8h1k4n7q0t3w6z9c2e5ib",
+        "roundNumber": 1,
+        "questionText": "What changed after you adopted the product?",
+        "transcript": "We cut our monthly close from ten days to four.",
+        "questionWindow": null,
+        "answerWindow": { "startOffsetMs": 0, "endOffsetMs": 0 },
+        "clipParts": [
+          {
+            "segmentId": "legacy-round:kp52f8h1k4n7q0t3w6z9c2e5ib",
+            "sequence": 1,
+            "logicalStartMs": 0,
+            "logicalEndMs": 0,
+            "segmentStartMs": 0,
+            "segmentEndMs": 0,
+            "source": "video_master",
+            "muxAssetId": null,
+            "muxPlaybackId": null,
+            "muxPlaybackPolicy": null,
+            "playable": false,
+            "blockedReason": "video_not_ready"
+          }
+        ]
+      }
+    ]
+  },
+  "insights": {
+    "available": false,
+    "executiveSummary": null,
+    "keyThemes": [],
+    "topQuotes": [],
+    "sentimentBreakdown": null,
+    "generatedAt": null,
+    "model": null
+  },
+  "manifest": {
+    "totalRounds": 1,
+    "roundsWithTranscript": 1,
+    "roundsWithVideo": 0,
+    "hasAiSummary": true,
+    "hasSentiment": true,
+    "hasInsights": false,
+    "processingWarnings": ["Interview insights not yet available"]
+  }
+}
+```
+
+The example is a voice interview with one round. A voice interview has no video for each round, so the video fields are empty.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `exportVersion` | number | The bundle format version. It is `1`. |
+| `exportedAt` | string | When the bundle was built, as ISO 8601 text. |
+| `response._id` | string | The response ID. |
+| `response.status` | string | The state of the response, such as `completed`. |
+| `response.currentRound` | number | The number of questions answered so far. |
+| `response.aiSummary` | string or null | The AI summary, once it exists. |
+| `response.sentimentScore` | number or null | A sentiment score from -1 to 1, when one exists. |
+| `response.sentiment` | string or null | `positive`, `neutral` or `negative`. |
+| `response.createdAt`, `response.completedAt` | number | Times in milliseconds. `completedAt` is `null` until the interview is completed. |
+| `contact` | object | The `name`, `email` and `title` of the person the interview was issued to. |
+| `campaign` | object | The brief the interview used: `_id`, `title`, `description`, `initialQuestion`, `maxRounds` and `status`. It can also carry `goal` and `interviewRevision`. |
+| `rounds[]` | array | One entry for each question, in order. Each has the question, the transcript, `transcriptionStatus`, `videoStatus` and the fields that identify the round's video. |
+| `media` | object | A map of the recordings for playback and clipping. `version` is `legacy_round_v1`, `continuous_v2` or `live_s2s_v1`, and the shape of `segments` and `markers` depends on it. |
+| `participantVideo` | object | Present for an interview taken on camera. `status` is `ready`, `pending`, `expired` or `unavailable`. |
+| `insights` | object | The campaign's insights: `available`, `executiveSummary`, `keyThemes`, `topQuotes`, `sentimentBreakdown`, `generatedAt` and `model`. |
+| `manifest` | object | Counts of what the bundle holds, and `processingWarnings`: a list of things that are not ready yet, as text. |
+
+## Export a campaign's responses
+
+```text
+GET /api/cli/v1/campaigns/{id}/export
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:evidence`. Any credential.
+
+Returns the campaign's responses as [bundles](#the-response-bundle), a page at a time.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The campaign ID. |
+
+**Query parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `pageSize` | integer | No | How many responses to read for one page, from 1 to 25. Send it on every request. |
+| `cursor` | string | No | The `continueCursor` from the previous page. |
+| `includeTest` | string | No | Send `true` to include responses from test interviews. They are left out otherwise. |
+
+How paging works:
+
+- Send `pageSize`, then follow `continueCursor` until `isDone` is `true`.
+- A page can hold fewer responses than `pageSize`, or none, before the last page. Responses hidden by moderation and test responses are left out after the page is read.
+- Without `pageSize`, the route returns the whole campaign only if it can read every response in one page. Otherwise it returns 413.
+- A page is limited to 6 MiB of data. If a page is larger, the route returns 413. Ask for a smaller `pageSize`.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "campaign": {
+      "_id": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+      "title": "Customer stories",
+      "description": null,
+      "status": "active"
+    },
+    "totalResponses": 1,
+    "responses": [
+      {
+        "exportVersion": 1,
+        "exportedAt": "2026-12-03T17:20:00.000Z",
+        "response": { "_id": "kr38h6b1d9g4j7m2n5p0s3v8xc", "status": "completed", "currentRound": 1, "aiSummary": "Sarah described how Acme cut its monthly close from ten days to four.", "sentimentScore": 0.8, "sentiment": "positive", "createdAt": 1796316902000, "completedAt": 1796317391000 },
+        "contact": { "name": "Sarah Lee", "email": "sarah@acme.com", "title": "VP Operations" },
+        "campaign": { "_id": "kh7b3q5n8v2c6x1z4m9l0p7s3d", "title": "Customer stories", "description": null, "initialQuestion": "What changed after you adopted the product?", "maxRounds": 4, "status": "active" },
+        "rounds": [
+          { "roundNumber": 1, "questionText": "What changed after you adopted the product?", "transcript": "We cut our monthly close from ten days to four.", "transcriptionStatus": "completed", "videoStatus": "not_required", "muxPlaybackId": null, "muxAssetId": null, "muxAssetStatus": null, "muxMasterAccess": null, "muxMasterStatus": null, "muxErrorMessage": null, "videoDurationSecs": null }
+        ],
+        "media": {
+          "version": "legacy_round_v1",
+          "protocolVersion": 1,
+          "responseId": "kr38h6b1d9g4j7m2n5p0s3v8xc",
+          "logicalDurationMs": 0,
+          "segments": [
+            { "segmentId": "legacy-round:kp52f8h1k4n7q0t3w6z9c2e5ib", "sequence": 1, "roundId": "kp52f8h1k4n7q0t3w6z9c2e5ib", "state": "not_required", "logicalStartMs": 0, "logicalEndMs": 0, "durationMs": 0, "muxAssetId": null, "muxPlaybackId": null, "muxPlaybackPolicy": null }
+          ],
+          "markers": [
+            {
+              "roundId": "kp52f8h1k4n7q0t3w6z9c2e5ib",
+              "roundNumber": 1,
+              "questionText": "What changed after you adopted the product?",
+              "transcript": "We cut our monthly close from ten days to four.",
+              "questionWindow": null,
+              "answerWindow": { "startOffsetMs": 0, "endOffsetMs": 0 },
+              "clipParts": [
+                { "segmentId": "legacy-round:kp52f8h1k4n7q0t3w6z9c2e5ib", "sequence": 1, "logicalStartMs": 0, "logicalEndMs": 0, "segmentStartMs": 0, "segmentEndMs": 0, "source": "video_master", "muxAssetId": null, "muxPlaybackId": null, "muxPlaybackPolicy": null, "playable": false, "blockedReason": "video_not_ready" }
+              ]
+            }
+          ]
+        },
+        "insights": { "available": false, "executiveSummary": null, "keyThemes": [], "topQuotes": [], "sentimentBreakdown": null, "generatedAt": null, "model": null },
+        "manifest": { "totalRounds": 1, "roundsWithTranscript": 1, "roundsWithVideo": 0, "hasAiSummary": true, "hasSentiment": true, "hasInsights": false, "processingWarnings": ["Interview insights not yet available"] }
+      }
+    ],
+    "isDone": true,
+    "continueCursor": null
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `campaign` | object | The campaign's `_id`, `title`, `description` and `status`. |
+| `totalResponses` | number | The number of bundles in this page. It is not the total for the campaign. |
+| `responses` | array | The [bundles](#the-response-bundle) in this page. |
+| `isDone` | boolean | `true` on the last page. |
+| `continueCursor` | string or null | Send it as `cursor` to get the next page. `null` on the last page. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | `pageSize` is not a whole number from 1 to 25. |
+| 403 | The credential lacks `pointed:evidence`. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 404 | No campaign with that ID in your workspace. `error` is `Account interviews not found`. |
+| 413 | You sent no `pageSize` and the campaign does not fit in one page, or the page is larger than 6 MiB. |
+| 500 | The export failed, or the ID is malformed. |
+
+**Example**
+
+```bash
+curl "https://app.usepointed.ai/api/cli/v1/campaigns/kh7b3q5n8v2c6x1z4m9l0p7s3d/export?pageSize=10" \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Export one response
+
+```text
+GET /api/cli/v1/campaigns/{id}/responses/{responseId}/export
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:evidence`. Any credential.
+
+Returns one response as a [bundle](#the-response-bundle), with download addresses for its recordings.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The campaign ID. |
+| `responseId` | string | Yes | The response ID. It is `response._id` in a bundle. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "bundle": {
+      "exportVersion": 1,
+      "exportedAt": "2026-12-03T17:20:00.000Z",
+      "response": { "_id": "kr38h6b1d9g4j7m2n5p0s3v8xc", "status": "completed", "currentRound": 1, "aiSummary": "Sarah described how Acme cut its monthly close from ten days to four.", "sentimentScore": 0.8, "sentiment": "positive", "createdAt": 1796316902000, "completedAt": 1796317391000 },
+      "contact": { "name": "Sarah Lee", "email": "sarah@acme.com", "title": "VP Operations" },
+      "campaign": { "_id": "kh7b3q5n8v2c6x1z4m9l0p7s3d", "title": "Customer stories", "description": null, "initialQuestion": "What changed after you adopted the product?", "maxRounds": 4, "status": "active" },
+      "rounds": [
+        { "roundNumber": 1, "questionText": "What changed after you adopted the product?", "transcript": "We cut our monthly close from ten days to four.", "transcriptionStatus": "completed", "videoStatus": "not_required", "muxPlaybackId": null, "muxAssetId": null, "muxAssetStatus": null, "muxMasterAccess": null, "muxMasterStatus": null, "muxErrorMessage": null, "videoDurationSecs": null }
+      ],
+      "media": {
+        "version": "legacy_round_v1",
+        "protocolVersion": 1,
+        "responseId": "kr38h6b1d9g4j7m2n5p0s3v8xc",
+        "logicalDurationMs": 0,
+        "segments": [
+          { "segmentId": "legacy-round:kp52f8h1k4n7q0t3w6z9c2e5ib", "sequence": 1, "roundId": "kp52f8h1k4n7q0t3w6z9c2e5ib", "state": "not_required", "logicalStartMs": 0, "logicalEndMs": 0, "durationMs": 0, "muxAssetId": null, "muxPlaybackId": null, "muxPlaybackPolicy": null }
+        ],
+        "markers": [
+          {
+            "roundId": "kp52f8h1k4n7q0t3w6z9c2e5ib",
+            "roundNumber": 1,
+            "questionText": "What changed after you adopted the product?",
+            "transcript": "We cut our monthly close from ten days to four.",
+            "questionWindow": null,
+            "answerWindow": { "startOffsetMs": 0, "endOffsetMs": 0 },
+            "clipParts": [
+              { "segmentId": "legacy-round:kp52f8h1k4n7q0t3w6z9c2e5ib", "sequence": 1, "logicalStartMs": 0, "logicalEndMs": 0, "segmentStartMs": 0, "segmentEndMs": 0, "source": "video_master", "muxAssetId": null, "muxPlaybackId": null, "muxPlaybackPolicy": null, "playable": false, "blockedReason": "video_not_ready" }
+            ]
+          }
+        ]
+      },
+      "insights": { "available": false, "executiveSummary": null, "keyThemes": [], "topQuotes": [], "sentimentBreakdown": null, "generatedAt": null, "model": null },
+      "manifest": { "totalRounds": 1, "roundsWithTranscript": 1, "roundsWithVideo": 0, "hasAiSummary": true, "hasSentiment": true, "hasInsights": false, "processingWarnings": ["Interview insights not yet available"] }
+    },
+    "downloads": {
+      "bundleFileName": "response-sarah-lee-2026-12-03.json",
+      "audio": {
+        "fileName": "response-sarah-lee-2026-12-03-audio.mp3",
+        "url": "https://files.example.com/response-sarah-lee-2026-12-03-audio.mp3",
+        "status": "ready",
+        "reason": null
+      },
+      "videos": [],
+      "segments": []
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `bundle` | object | The [response bundle](#the-response-bundle). |
+| `downloads.bundleFileName` | string | A suggested file name for the bundle. |
+| `downloads.audio` | object | The interview audio. Present for a voice or camera interview. |
+| `downloads.participantVideo` | object | The camera recording. Present for an interview taken on camera. |
+| `downloads.videos[]` | array | One entry for each round that has its own video. Each has `roundNumber`. |
+| `downloads.segments[]` | array | One entry for each recording segment of a continuous recording. Each has `segmentId` and `sequence`. |
+
+Every download entry has these fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `fileName` | string | A suggested file name. |
+| `url` | string or null | The download address. `null` when the file is not ready. The address in the example is a placeholder. |
+| `status` | string | `ready`, `preparing`, `unavailable` or `failed`. |
+| `reason` | string or null | Why the file is not ready. `null` when it is. |
+
+A recording can still be `preparing` when the interview is already completed. Request the export again later to get its address.
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 403 | The credential lacks `pointed:evidence`. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 404 | The campaign or response was not found, or the response does not belong to that campaign. `error` is `Interview response not found`. |
+| 500 | The export failed, an ID is malformed, the response is hidden by moderation, or the response has more than 64 files to download. |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/campaigns/kh7b3q5n8v2c6x1z4m9l0p7s3d/responses/kr38h6b1d9g4j7m2n5p0s3v8xc/export \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```

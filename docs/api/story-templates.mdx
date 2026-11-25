@@ -1,0 +1,960 @@
+---
+title: Story templates
+description: Create reusable interview templates, enroll accounts in them and read each template's roster of interviews.
+---
+
+A story template is a reusable interview brief: a goal, an opening question and the kind of interview. Enrolling an account in a template creates that account's campaign and prepares an interview link for each selected contact. Enrolling does not send email.
+
+## The template object
+
+The read routes return a template with its numbers and its roster.
+
+```json
+{
+  "_id": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+  "_creationTime": 1794736800000,
+  "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+  "title": "Customer stories",
+  "role": "Account stakeholder",
+  "goal": "Capture the before-and-after story behind the results customers have seen.",
+  "initialQuestion": "What changed after you adopted the product?",
+  "maxRounds": 4,
+  "interviewChannel": "browser",
+  "status": "active",
+  "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+  "createdAt": 1794736800000,
+  "interviewStatus": "story_arc",
+  "openingQuestion": "What changed after you adopted the product?",
+  "followUpCount": 3,
+  "stats": {
+    "accounts": 1,
+    "contacts": 1,
+    "interviews": 1,
+    "responses": 1,
+    "completed": 1,
+    "prepared": 0,
+    "sent": 1,
+    "tests": 0
+  },
+  "accounts": [
+    {
+      "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "enrollmentId": "ke73g0j3m6p9s2v5y8b1d4f7h0",
+      "accountName": "Acme",
+      "campaignId": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+      "contactsCount": 1,
+      "invitesCount": 1,
+      "completedCount": 1,
+      "sentCount": 1,
+      "preparedCount": 0,
+      "responsesCount": 1,
+      "status": "completed",
+      "autoIncludeNewContacts": true,
+      "sentiment": 0.8,
+      "details": { "name": "Acme", "domain": "acme.com", "industry": "Manufacturing" }
+    }
+  ],
+  "contacts": [
+    {
+      "_id": "jd7f2k9x0m4q8v1n3s6t5w2y7z",
+      "campaignId": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+      "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "accountName": "Acme",
+      "contactId": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+      "contactAvailable": true,
+      "directoryContact": { "name": "Sarah Lee", "email": "sarah@acme.com", "title": "VP Operations", "accountName": "Acme" },
+      "interviewTitle": "Customer stories",
+      "preparedAt": 1796137200000,
+      "recipientName": "Sarah Lee",
+      "recipientEmail": "sarah@acme.com",
+      "recipientTitle": "VP Operations",
+      "inviteType": "campaign",
+      "status": "completed",
+      "reviewStatus": "completed",
+      "responseStatus": "completed",
+      "responseId": "kr38h6b1d9g4j7m2n5p0s3v8xc",
+      "sentimentScore": 0.8,
+      "surveyUrl": "https://app.usepointed.ai/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+      "surveyPath": "/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+      "isExpired": false,
+      "canRenewAndSend": true,
+      "canCopyLink": true,
+      "canSendReminder": false,
+      "canSendNow": false,
+      "sentAt": 1796137320000,
+      "lastSentAt": 1796137320000,
+      "lastReminderAt": null,
+      "reminderCount": 0,
+      "occurrence": 1
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `_id` | string | The template ID. |
+| `title` | string | The template's name in your workspace. |
+| `customerFacingName` | string | The interview name participants see. Left out when not set. |
+| `customerFacingTopic` | string | The topic named in the invitation email. Left out when not set. |
+| `role` | string | The kind of person the template is for. |
+| `goal` | string | What you want to learn. |
+| `description` | string | A description. Left out when not set. |
+| `initialQuestion`, `openingQuestion` | string | The opening question. Both fields hold the same value. |
+| `maxRounds` | number | The number of interview rounds. |
+| `followUpCount` | number | `maxRounds` minus one. |
+| `interviewChannel` | string | How participants can take the interview. See [Create a template](#create-a-template). Left out when not set. |
+| `status` | string | `active` for a template you can use. |
+| `stats` | object | Counts across the template: enrolled accounts, contacts, interviews, responses, completed, prepared, sent and test interviews. |
+| `accounts[]` | array | One entry for each enrolled account, with its counts, its `campaignId`, a `status` and `autoIncludeNewContacts`. |
+| `contacts[]` | array | The roster: one entry for each interview link. |
+
+Fields of a roster entry that an integration is likely to use:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `_id` | string | The invite ID. Use it with the [invite routes](/docs/api/invites). |
+| `campaignId`, `accountId`, `contactId` | string | The campaign, account and contact the link belongs to. |
+| `recipientName`, `recipientEmail` | string | The person the link was issued to. |
+| `status` | string | The state of the link, such as `pending`, `sent`, `opened`, `started` or `completed`. |
+| `reviewStatus` | string | The state shown in the Pointed app. It follows the response once one exists. `draft` means the link cannot be shared yet. |
+| `responseId` | string or null | The response ID, once the contact has started. Use it with [Export one response](/docs/api/campaigns#export-one-response). |
+| `surveyUrl` | string | The interview link. Present only while the link can be shared. |
+| `isExpired` | boolean | `true` once the link has passed its expiry. |
+| `sentAt`, `lastSentAt`, `lastReminderAt` | number or null | Email times in milliseconds. |
+| `inviteType` | string | `campaign` for a real link. `test` for a test link. |
+
+A template can carry other fields that this reference does not list.
+
+## List templates
+
+```text
+GET /api/cli/v1/story-templates
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+Returns every template in the workspace, newest first, each as a [template object](#the-template-object) with its roster. The route takes no parameters and does not page.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "_id": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+      "_creationTime": 1794736800000,
+      "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+      "title": "Customer stories",
+      "role": "Account stakeholder",
+      "goal": "Capture the before-and-after story behind the results customers have seen.",
+      "initialQuestion": "What changed after you adopted the product?",
+      "maxRounds": 4,
+      "interviewChannel": "browser",
+      "status": "active",
+      "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+      "createdAt": 1794736800000,
+      "interviewStatus": "story_arc",
+      "openingQuestion": "What changed after you adopted the product?",
+      "followUpCount": 3,
+      "stats": { "accounts": 0, "contacts": 0, "interviews": 0, "responses": 0, "completed": 0, "prepared": 0, "sent": 0, "tests": 0 },
+      "accounts": [],
+      "contacts": []
+    }
+  ],
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+The example shows a template with no enrolled accounts yet.
+
+**Errors:** the [authentication errors](/docs/api/authentication#authentication-errors).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/story-templates \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## List starters
+
+```text
+GET /api/cli/v1/story-templates/starters
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+A starter is a ready-made use case with a title, a goal and an interview length. Pass a starter's `id` as `starter` when you [create a template](#create-a-template).
+
+**Response:** `200 OK`. The example shows two of the entries.
+
+```json
+{
+  "data": [
+    {
+      "id": "roi-stories",
+      "title": "ROI stories",
+      "summary": "Measurable results customers have seen",
+      "goal": "Capture the before-and-after story behind the customer's results: the problem they faced, what changed after adopting the product, and the measurable impact on time, cost or revenue. Ask for specific numbers and quotable moments.",
+      "interviewLength": "standard"
+    },
+    {
+      "id": "company-feedback",
+      "title": "Quarterly feedback",
+      "summary": "How the team feels about the company",
+      "goal": "Hear how employees feel about the company this quarter: what's working, what's getting in the way, how they feel about direction and leadership, and what one change would make the biggest difference. Ask for concrete examples.",
+      "interviewLength": "standard",
+      "internalOnly": true
+    }
+  ],
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | The value to pass as `starter`. |
+| `title` | string | The title the template gets. |
+| `summary` | string | A short description. |
+| `goal` | string | The goal the template gets. |
+| `interviewLength` | string | `quick`, `standard` or `deep`. |
+| `internalOnly` | boolean | Present and `true` for a starter meant for interviewing your own team. |
+
+**Errors:** the [authentication errors](/docs/api/authentication#authentication-errors).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/story-templates/starters \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Create a template
+
+```text
+POST /api/cli/v1/story-templates
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `title` | string | Yes, unless `starter` is sent | The template's name in your workspace. |
+| `goal` | string | Yes, unless `starter` is sent | What you want to learn. |
+| `starter` | string | No | The `id` of a [starter](#list-starters). It fills `title`, `goal` and `interviewLength`. A field you also send wins over the starter. |
+| `role` | string | No | The kind of person the template is for. The default is `Account stakeholder`. |
+| `customerFacingName` | string | No | The interview name participants see. |
+| `customerFacingTopic` | string | No | The topic named in the invitation email. Up to 140 characters. |
+| `productName` | string | No | The product the interview is about. |
+| `description` | string | No | A description. |
+| `initialQuestion` | string | No | The opening question. If you leave it out, Pointed chooses one. |
+| `maxRounds` | number | No | The number of interview rounds. The default is 4. |
+| `interviewChannel` | string | No | How participants can take the interview. One of the values below. |
+| `interviewLength` | string | No | `quick`, `standard` or `deep`. |
+
+Values of `interviewChannel`:
+
+| Value | Meaning |
+| --- | --- |
+| `phone` | A phone call. |
+| `browser` | In the browser. The participant chooses whether to use the camera. |
+| `browser_audio` | In the browser, voice only. |
+| `browser_video` | In the browser, on camera. |
+| `participant_choice` | The participant chooses phone or browser. |
+
+**Response:** `201 Created`. `data` is the stored template, without `stats`, `accounts` or `contacts`.
+
+```json
+{
+  "data": {
+    "_id": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+    "_creationTime": 1794736800000,
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "title": "Customer stories",
+    "role": "Account stakeholder",
+    "goal": "Capture the before-and-after story behind the results customers have seen.",
+    "initialQuestion": "What changed after you adopted the product?",
+    "maxRounds": 4,
+    "interviewChannel": "browser",
+    "status": "active",
+    "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+    "createdAt": 1794736800000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, or `starter` is not a known starter ID. |
+| 400 | `title` or `goal` is missing, `role` is empty, or a field has the wrong type. |
+| 400 | `customerFacingTopic` is longer than 140 characters, or `interviewChannel` or `interviewLength` is not an allowed value. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The request could not be completed. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/story-templates \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Customer stories",
+    "goal": "Capture the before-and-after story behind the results customers have seen.",
+    "initialQuestion": "What changed after you adopted the product?",
+    "interviewChannel": "browser"
+  }'
+```
+
+## Get a template
+
+```text
+GET /api/cli/v1/story-templates/{id}
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The template ID. |
+
+**Response:** `200 OK`. `data` is the [template object](#the-template-object), with its roster.
+
+```json
+{
+  "data": {
+    "_id": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+    "_creationTime": 1794736800000,
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "title": "Customer stories",
+    "role": "Account stakeholder",
+    "goal": "Capture the before-and-after story behind the results customers have seen.",
+    "initialQuestion": "What changed after you adopted the product?",
+    "maxRounds": 4,
+    "interviewChannel": "browser",
+    "status": "active",
+    "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+    "createdAt": 1794736800000,
+    "interviewStatus": "story_arc",
+    "openingQuestion": "What changed after you adopted the product?",
+    "followUpCount": 3,
+    "stats": { "accounts": 1, "contacts": 1, "interviews": 1, "responses": 0, "completed": 0, "prepared": 1, "sent": 0, "tests": 0 },
+    "accounts": [
+      {
+        "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+        "enrollmentId": "ke73g0j3m6p9s2v5y8b1d4f7h0",
+        "accountName": "Acme",
+        "campaignId": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+        "contactsCount": 1,
+        "invitesCount": 1,
+        "completedCount": 0,
+        "sentCount": 0,
+        "preparedCount": 1,
+        "responsesCount": 0,
+        "status": "prepared",
+        "autoIncludeNewContacts": true,
+        "sentiment": null,
+        "details": { "name": "Acme", "domain": "acme.com", "industry": "Manufacturing" }
+      }
+    ],
+    "contacts": [
+      {
+        "_id": "jd7f2k9x0m4q8v1n3s6t5w2y7z",
+        "campaignId": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+        "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+        "accountName": "Acme",
+        "contactId": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+        "contactAvailable": true,
+        "directoryContact": { "name": "Sarah Lee", "email": "sarah@acme.com", "title": "VP Operations", "accountName": "Acme" },
+        "interviewTitle": "Customer stories",
+        "preparedAt": 1796137200000,
+        "recipientName": "Sarah Lee",
+        "recipientEmail": "sarah@acme.com",
+        "recipientTitle": "VP Operations",
+        "inviteType": "campaign",
+        "status": "pending",
+        "reviewStatus": "pending",
+        "responseStatus": null,
+        "responseId": null,
+        "sentimentScore": null,
+        "surveyUrl": "https://app.usepointed.ai/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+        "surveyPath": "/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+        "isExpired": false,
+        "canRenewAndSend": true,
+        "canCopyLink": true,
+        "canSendReminder": false,
+        "canSendNow": true,
+        "sentAt": null,
+        "lastSentAt": null,
+        "lastReminderAt": null,
+        "reminderCount": 0,
+        "occurrence": 1
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+The example shows a template right after Acme was enrolled: one link is prepared and not yet sent.
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 404 | No template with that ID in your workspace. `error` is `Interview template not found`. |
+| 500 | The ID is malformed or is not a template ID. |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/story-templates/ks91t4w7y2z5b8d3g6j0m1n4pq \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Update a template
+
+```text
+PATCH /api/cli/v1/story-templates/{id}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Send only the fields you want to change. To change the interview channel, use [interview settings](/docs/api/interview-settings).
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The template ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `title` | string | No | The template's name in your workspace. |
+| `customerFacingName` | string | No | The interview name participants see. |
+| `customerFacingTopic` | string | No | The topic named in the invitation email. Up to 140 characters. |
+| `role` | string | No | The kind of person the template is for. |
+| `goal` | string | No | What you want to learn. |
+| `description` | string | No | A description. |
+| `initialQuestion` | string | No | The opening question. See the 409 error below. |
+| `maxRounds` | number | No | The number of interview rounds. |
+
+**Response:** `200 OK`. `data` is the stored template, without `stats`, `accounts` or `contacts`.
+
+```json
+{
+  "data": {
+    "_id": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+    "_creationTime": 1794736800000,
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "title": "Customer stories",
+    "customerFacingName": "Your results with Brightline",
+    "role": "Account stakeholder",
+    "goal": "Capture the before-and-after story behind the results customers have seen.",
+    "initialQuestion": "What changed after you adopted the product?",
+    "maxRounds": 4,
+    "interviewChannel": "browser",
+    "status": "active",
+    "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+    "createdAt": 1794736800000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | `meta.code` | When |
+| --- | --- | --- |
+| 400 | none | The body is not a JSON object, a field has the wrong type, or `customerFacingTopic` is longer than 140 characters. |
+| 403 | none | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 409 | `TEMPLATE_SETTINGS_REQUIRED` | You changed `initialQuestion` on a template that already has interview links. Change the opening question with [Save interview settings](/docs/api/interview-settings#save-interview-settings) instead. |
+| 500 | none | The template was not found, or the ID is malformed. |
+
+**Example**
+
+```bash
+curl -X PATCH https://app.usepointed.ai/api/cli/v1/story-templates/ks91t4w7y2z5b8d3g6j0m1n4pq \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"customerFacingName": "Your results with Brightline"}'
+```
+
+## Delete a template
+
+```text
+DELETE /api/cli/v1/story-templates/{id}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Deletes the template and its account enrollments. Campaigns that came from the template are kept. They no longer point to a template.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The template ID. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "deleted": true
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The template was not found, or the ID is malformed. |
+
+**Example**
+
+```bash
+curl -X DELETE https://app.usepointed.ai/api/cli/v1/story-templates/ks91t4w7y2z5b8d3g6j0m1n4pq \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## List enrollment options
+
+```text
+GET /api/cli/v1/story-templates/{id}/enrollment-options
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+Returns every account in the workspace with its contacts, and says which are already enrolled in this template. Use it to decide whom to enroll.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The template ID. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "accountName": "Acme",
+      "alreadyEnrolled": true,
+      "autoIncludeNewContacts": true,
+      "enrolledContactIds": ["k17c9p4e2r8u5h3b6d1g0j7m9n"],
+      "contacts": [
+        {
+          "contactId": "k29d4q7e1r5u8h2b6g3j0m9n1p",
+          "name": "Marco Diaz",
+          "email": "marco@acme.com",
+          "title": "Plant Manager",
+          "alreadyEnrolled": false
+        },
+        {
+          "contactId": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+          "name": "Sarah Lee",
+          "email": "sarah@acme.com",
+          "title": "VP Operations",
+          "alreadyEnrolled": true
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `accountId`, `accountName` | string | The account. Accounts are sorted by name. |
+| `alreadyEnrolled` | boolean | Whether the account is enrolled in this template. |
+| `autoIncludeNewContacts` | boolean | Whether new contacts on the account get a link automatically. |
+| `enrolledContactIds` | array of strings | The contacts that already have a link in this template. |
+| `contacts[]` | array | The account's contacts, sorted by name. `title` is `null` when not set. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 500 | The template was not found, or the ID is malformed. |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/story-templates/ks91t4w7y2z5b8d3g6j0m1n4pq/enrollment-options \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Enroll accounts
+
+```text
+POST /api/cli/v1/story-templates/{id}/enroll
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Enrolls one or more accounts in the template. For each account, Pointed creates the account's campaign if it has none for this template, and prepares an interview link for each selected contact. No email is sent.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The template ID. |
+
+**Body parameters**
+
+Send one selection at the top level of the body, or several in `selections`.
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `accountId` | string | Yes | The account to enroll. |
+| `contactIds` | array of strings | No | The contacts to prepare links for, by ID. |
+| `contactEmails` | array of strings | No | The contacts to prepare links for, by email. Case is ignored. |
+| `autoIncludeNewContacts` | boolean | No | If `true`, a contact added to the account later gets a link in this template automatically. If you leave it out, a newly enrolled account uses the template's default and an enrolled account keeps its setting. |
+| `selections` | array | No | A list of selections, each with the four fields above. Use it to enroll several accounts in one request. It cannot be empty. |
+
+Rules for choosing contacts:
+
+- Send `contactIds` or `contactEmails`, not both.
+- Send neither to select every contact on the account.
+- Send an empty `contactIds` array to enroll the account without preparing any link.
+
+The request is all or nothing. If one selection is refused, nothing is saved.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "accountsProcessed": 1,
+    "invitesPrepared": 1,
+    "invitesAlreadyPrepared": 0,
+    "invitesWithoutLinks": 0
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `accountsProcessed` | number | How many selections were handled. |
+| `invitesPrepared` | number | New links that can be shared. |
+| `invitesAlreadyPrepared` | number | Contacts that already had a link that can be shared. |
+| `invitesWithoutLinks` | number | Contacts enrolled without a link that can be shared, for example because the interview has no voice channel set up. |
+
+Enrolling does not return the links. Get them from [Create interview links](/docs/api/campaigns#create-interview-links) with the account's campaign ID, or from `contacts[].surveyUrl` in [Get a template](#get-a-template).
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, `selections` is not a non-empty array, a selection has no `accountId`, both `contactIds` and `contactEmails` were sent, or a field has the wrong type. |
+| 400 | A contact ID does not belong to the selected account, or a contact email is not on the selected account. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The template or an account was not found, or an ID is malformed. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/story-templates/ks91t4w7y2z5b8d3g6j0m1n4pq/enroll \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "contactIds": ["k17c9p4e2r8u5h3b6d1g0j7m9n"],
+    "autoIncludeNewContacts": true
+  }'
+```
+
+## Get an account's enrollment
+
+```text
+GET /api/cli/v1/story-templates/{id}/accounts/{accountId}
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+Returns one account's state in one template: the enrollment and the account's part of the roster.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The template ID. |
+| `accountId` | string | Yes | The account ID. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "template": {
+      "_id": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+      "title": "Customer stories",
+      "status": "active",
+      "interviewChannel": "browser"
+    },
+    "account": {
+      "_id": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "_creationTime": 1793610900000,
+      "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+      "name": "Acme",
+      "domain": "acme.com",
+      "industry": "Manufacturing",
+      "createdAt": 1793610900000
+    },
+    "enrollment": {
+      "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+      "enrollmentId": "ke73g0j3m6p9s2v5y8b1d4f7h0",
+      "accountName": "Acme",
+      "campaignId": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+      "contactsCount": 1,
+      "invitesCount": 1,
+      "completedCount": 0,
+      "sentCount": 0,
+      "preparedCount": 1,
+      "responsesCount": 0,
+      "status": "prepared",
+      "autoIncludeNewContacts": true,
+      "sentiment": null,
+      "details": { "name": "Acme", "domain": "acme.com", "industry": "Manufacturing" }
+    },
+    "contacts": [
+      {
+        "_id": "jd7f2k9x0m4q8v1n3s6t5w2y7z",
+        "campaignId": "kh7b3q5n8v2c6x1z4m9l0p7s3d",
+        "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+        "accountName": "Acme",
+        "contactId": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+        "contactAvailable": true,
+        "directoryContact": { "name": "Sarah Lee", "email": "sarah@acme.com", "title": "VP Operations", "accountName": "Acme" },
+        "interviewTitle": "Customer stories",
+        "preparedAt": 1796137200000,
+        "recipientName": "Sarah Lee",
+        "recipientEmail": "sarah@acme.com",
+        "recipientTitle": "VP Operations",
+        "inviteType": "campaign",
+        "status": "pending",
+        "reviewStatus": "pending",
+        "responseStatus": null,
+        "responseId": null,
+        "sentimentScore": null,
+        "surveyUrl": "https://app.usepointed.ai/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+        "surveyPath": "/survey/acme/Qm3xV8nT2kLp9RzW5yBd7HcJ4sFg6AeU",
+        "isExpired": false,
+        "canRenewAndSend": true,
+        "canCopyLink": true,
+        "canSendReminder": false,
+        "canSendNow": true,
+        "sentAt": null,
+        "lastSentAt": null,
+        "lastReminderAt": null,
+        "reminderCount": 0,
+        "occurrence": 1
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `template` | object | The template's `_id`, `title`, `status` and `interviewChannel`. `interviewChannel` is `null` when not set. |
+| `account` | object | The [account object](/docs/api/accounts#the-account-object). |
+| `enrollment` | object or null | The account's entry from the template's `accounts` list. `null` if the account is not enrolled and has no campaign in this template. |
+| `contacts` | array | The account's entries from the template's roster. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 404 | The template or the account was not found in your workspace. `error` is `Interview template account state not found`. |
+| 500 | An ID is malformed. |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/story-templates/ks91t4w7y2z5b8d3g6j0m1n4pq/accounts/j57a1m6c3x9z2q8w4e7r5t0y1u \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Update an account's enrollment
+
+```text
+PATCH /api/cli/v1/story-templates/{id}/accounts/{accountId}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Turns automatic links for new contacts on or off for one enrolled account.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | Yes | The template ID. |
+| `accountId` | string | Yes | The account ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `autoIncludeNewContacts` | boolean | Yes | Whether a contact added to the account later gets a link in this template automatically. |
+
+**Response:** `200 OK`. `data` is the enrollment record.
+
+```json
+{
+  "data": {
+    "_id": "ke73g0j3m6p9s2v5y8b1d4f7h0",
+    "_creationTime": 1796137200000,
+    "storyTemplateId": "ks91t4w7y2z5b8d3g6j0m1n4pq",
+    "accountId": "j57a1m6c3x9z2q8w4e7r5t0y1u",
+    "orgId": "kd7w2m4x8q1v6n3s9t5y0z2b7c",
+    "autoIncludeNewContacts": false,
+    "createdBy": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+    "createdAt": 1796137200000,
+    "updatedAt": 1796205600000
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not a JSON object, or `autoIncludeNewContacts` is not `true` or `false`. |
+| 400 | The account is not enrolled in the template. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The template or the account was not found, or an ID is malformed. |
+
+**Example**
+
+```bash
+curl -X PATCH https://app.usepointed.ai/api/cli/v1/story-templates/ks91t4w7y2z5b8d3g6j0m1n4pq/accounts/j57a1m6c3x9z2q8w4e7r5t0y1u \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"autoIncludeNewContacts": false}'
+```
+
+## Summarize campaigns without a template
+
+```text
+GET /api/cli/v1/story-templates/legacy-import-summary
+```
+
+**Authorization:** scope `pointed:read`. Any credential.
+
+Counts the campaigns in the workspace that do not belong to a story template and can be imported into one. A campaign made with [Create a campaign](/docs/api/campaigns#create-a-campaign) is one of these.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "count": 1,
+    "campaignTitles": ["Customer stories"]
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `count` | number | How many campaigns can be imported. |
+| `campaignTitles` | array of strings | The titles of up to three of them, newest first. |
+
+**Errors:** the [authentication errors](/docs/api/authentication#authentication-errors).
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/story-templates/legacy-import-summary \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Import campaigns without a template
+
+```text
+POST /api/cli/v1/story-templates/import-legacy
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Creates one story template for each campaign counted by the [summary](#summarize-campaigns-without-a-template). The template takes the campaign's title, opening question and number of rounds, and uses the campaign's context as its goal. The campaign is attached to the new template and its account is enrolled. No email is sent.
+
+The route takes no body.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "importedTemplates": 1,
+    "linkedCampaigns": 1,
+    "createdEnrollments": 1
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `importedTemplates` | number | How many templates were created. |
+| `linkedCampaigns` | number | How many campaigns were attached to a template. |
+| `createdEnrollments` | number | How many account enrollments were created. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 500 | The request could not be completed. |
+
+**Example**
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/story-templates/import-legacy \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```

@@ -1,0 +1,370 @@
+---
+title: Webhooks
+description: Have Pointed tell your own system when a contact starts, finishes or leaves an interview, so you can send a reward, update your CRM or post to Slack.
+---
+
+A webhook is a message Pointed sends to an address you choose when something happens. You add an HTTPS endpoint, pick the events you care about, and Pointed posts a small signed JSON body to it each time one occurs.
+
+The most common use: you promise your customers something for sharing their story, and your system delivers it the moment the interview is finished.
+
+Webhooks are available in every Pointed workspace. A workspace admin sets them up.
+
+## Quickstart
+
+1. **Add an endpoint.** In Pointed, open the **Webhooks** tab in workspace settings and choose **Add endpoint**. Paste the HTTPS address that should receive events. You need to be a workspace admin. You can also use the [CLI or the API](#set-it-up-from-the-cli-the-api-or-an-ai-agent).
+2. **Store the signing secret.** It starts with `whsec_` and is shown once. Put it in your secret store. If you lose it, rotate it to get a new one.
+3. **Send a test event.** Choose **Send test event**. Pointed sends a `webhook.test` event with invented sample data in the same shape as `interview.completed`.
+4. **Check the delivery log.** The page shows the status code your endpoint answered with, how long it took and whether Pointed will retry.
+5. **Handle the real thing.** Answer with any `2xx` status within 10 seconds, [verify the signature](#verify-the-signature), and use the event `id` to [ignore duplicates](#duplicates-and-order).
+
+Using Zapier or Make? Create a "Catch Hook" (Zapier) or "Custom webhook" (Make) trigger, paste its address into Pointed, send a test event, and map the fields. You can skip signature verification there.
+
+## Events
+
+| Event | Sent when | Sent |
+| --- | --- | --- |
+| `interview.started` | The contact agreed to the notice and started the interview in the browser, or asked for a call. | Once per interview |
+| `interview.completed` | The AI interviewer finished the interview. A contact who leaves early does not produce this event. | Once per interview |
+| `interview.incomplete` | An attempt ended before the interview was finished. See [Incomplete attempts](#incomplete-attempts). | Once per attempt |
+| `interview.summary_ready` | The first AI summary and sentiment for a completed interview are saved. | Once per interview |
+| `interview.recording_ready` | Every recording a completed interview expects has settled. The event says which recordings exist. | Once per interview |
+| `interview.deleted` | An interview response was deleted by a teammate, by retention or for a privacy request. | Once per deletion |
+| `invite.expired` | An interview link the contact was sent, opened or started passed its expiry date without a completed interview. | Once per expiry date |
+| `campaign.completed` | Every current invite in one account's interviews is completed or expired. | Once per result |
+| `webhook.test` | You sent a test event. | Each time you ask |
+
+A new endpoint receives `interview.completed` only. Choose more when you add or edit it.
+
+Things to know before you build on these:
+
+- **Completion is separate from recordings and the summary.** `interview.completed` means the interview finished. The audio, the video and the AI summary arrive later and can fail on their own. If you pay more for a video, wait for `interview.recording_ready` and check `recording.video`. The camera file is uploaded from the contact's browser after the interview, and the contact can retry a failed upload for a day. So that event comes minutes later when the upload works. When no upload ever succeeds it comes a day to a day and a half later, with `video: "failed"`. Until then `recording.video` is `processing`.
+- **`invite.expired` can arrive up to about an hour late.** Pointed looks for lapsed links once an hour. If you renew a link and it lapses again, you get another event.
+- **`invite.expired` is only about links a person could have used.** Pointed prepares links ahead of time for the contacts you enroll. One that was never sent, opened or started produces no event when it lapses, so a reminder you send in response cannot reach someone who was never invited. A link you created with your own `reference` is always reported.
+- **Most other events arrive within seconds.** If Pointed misses a completion, an hourly check sends it.
+- **Only customer interviews are reported.** Demos and your own voice tests never produce events. Test interviews are reported only if you [opt in](#test-events).
+- **An endpoint only hears about what happens while it is on, for the events it had selected then.** Nothing from before you added it, or from while it was paused, is sent later. The same holds when you select another event or switch on test interviews: that starts from the moment you change it. Adding `interview.completed` to an endpoint today does not send yesterday's interviews.
+
+## The event body
+
+Every event has the same outer shape.
+
+```json
+{
+  "id": "evt_5b1f0c9e7a2d4e83b6c1a4f09d2e7c55",
+  "type": "interview.completed",
+  "api_version": "2026-12-01",
+  "created_at": "2026-12-03T17:03:11.000Z",
+  "test": false,
+  "data": {
+    "interview": {
+      "id": "jd7f2k9x0m4q8v1n3s6t5w2y7z",
+      "status": "completed",
+      "channel": "browser_video",
+      "started_at": "2026-12-03T16:55:02.000Z",
+      "completed_at": "2026-12-03T17:03:11.000Z",
+      "answers_count": 6,
+      "depth": "standard",
+      "planned_follow_ups": 6,
+      "duration_seconds": 471,
+      "attempts_count": 1,
+      "recording": { "audio": "pending", "video": "processing" },
+      "summary": { "status": "pending", "sentiment": null },
+      "dashboard_url": "https://app.usepointed.ai/dashboard/interviews/jd7f2k9x0m4q8v1n3s6t5w2y7z"
+    },
+    "invite": {
+      "reference": "user_8231",
+      "sent_at": "2026-12-01T15:00:00.000Z",
+      "opened_at": "2026-12-03T16:54:10.000Z",
+      "expires_at": "2026-12-31T15:00:00.000Z"
+    },
+    "contact": {
+      "id": "k17c9p4e2r8u5h3b6d1g0j7m9n",
+      "external_id": "cus_8231",
+      "email": "sarah@acme.com",
+      "name": "Sarah Lee"
+    },
+    "account": { "id": "j57a1m6c3x9z2q8w4e7r5t0y1u", "name": "Acme", "domain": "acme.com" },
+    "campaign": { "id": "kh7b3q5n8v2c6x1z4m9l0p7s3d", "title": "Customer stories" }
+  }
+}
+```
+
+### Outer fields
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The event ID. It stays the same when Pointed retries or you resend, so use it to ignore duplicates. Also sent as the `webhook-id` header. |
+| `type` | The event type. |
+| `api_version` | The version of this format, as a date. Pointed can add fields and event types without changing it. Removing or renaming a field changes it. |
+| `created_at` | When the thing happened, not when it was sent. For `interview.completed` this is the completion time. |
+| `test` | `true` for a test event or a test interview. Do not act on these. |
+| `data` | The details. Its shape depends on the event type. |
+
+### `data.interview`
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The interview's ID. It is the ID in the interview's page address in Pointed and the `inviteId` the API returns when you create a link. |
+| `status` | One of `created`, `sent`, `opened`, `started`, `partial`, `completed`, `expired`, `deleted`. `partial` means some answers are saved and the interview can still be finished. |
+| `channel` | How the interview was taken: `browser_video`, `browser_audio` or `phone`. `null` if it has not started. |
+| `started_at`, `completed_at` | Times, or `null`. |
+| `answers_count` | Questions answered so far, across every attempt. |
+| `depth` | The interview length chosen for it: `quick`, `standard` or `deep`. `null` if unknown. |
+| `planned_follow_ups` | 3, 6 or 10, by depth. It guides the interviewer and is not a quota, so do not turn it into a percentage. |
+| `duration_seconds` | Talk time reported by the voice provider, added up over the attempts that saved answers. `null` when no reliable figure exists. |
+| `attempts_count` | How many times the contact tried, including calls that were not answered. |
+| `recording.audio` | `pending`, `ready` or `unavailable`. |
+| `recording.video` | `none` (not a video interview), `processing`, `ready` or `failed`. |
+| `summary.status` | `pending` or `ready`. |
+| `summary.sentiment` | `positive`, `neutral` or `negative` once the summary is ready, otherwise `null`. |
+| `dashboard_url` | Where a teammate can open the interview in Pointed. |
+
+### `data.invite`, `data.contact`, `data.account`, `data.campaign`
+
+| Field | Meaning |
+| --- | --- |
+| `invite.reference` | Your own label for this link, if you set one. See [Your own IDs](#your-own-ids). |
+| `invite.sent_at`, `invite.opened_at`, `invite.expires_at` | Times, or `null`. |
+| `contact.id` | Pointed's ID for the contact. |
+| `contact.external_id` | Your own ID for the person, if you set one. |
+| `contact.email`, `contact.name` | The person the link was issued to. These stay as they were when the link was issued, even if you edit the contact later. |
+| `account.id`, `account.name`, `account.domain` | The customer account. |
+| `campaign.id`, `campaign.title` | The set of interviews for that account. `campaign.id` is the `--campaign-id` the CLI uses. |
+
+Events never contain the transcript, the summary text, a media address or a phone number. Use `dashboard_url` to reach the content.
+
+### Incomplete attempts
+
+`interview.incomplete` has the same `data` as above plus an `attempt` object inside `data`:
+
+```json
+{
+  "attempt": { "outcome": "ended_early", "resumable": true }
+}
+```
+
+| `outcome` | Meaning |
+| --- | --- |
+| `ended_early` | The contact left before the end. Their answers are saved. |
+| `nothing_captured` | The attempt ended with nothing saved, for example the connection dropped at the start or a call could not be placed. |
+| `no_answer` | A phone call was not answered, was busy or reached voicemail. |
+
+`resumable` is `true` when the same link can still be used to continue. Answers add up across attempts, so `answers_count` grows when the contact comes back.
+
+### Deleted interviews
+
+`interview.deleted` carries identifiers and the reason only, with no name or email. Its `data` is:
+
+```json
+{
+  "interview": { "id": "jd7f2k9x0m4q8v1n3s6t5w2y7z", "status": "deleted" },
+  "invite": { "reference": "user_8231" },
+  "contact": { "id": "k17c9p4e2r8u5h3b6d1g0j7m9n", "external_id": "cus_8231" },
+  "account": { "id": "j57a1m6c3x9z2q8w4e7r5t0y1u" },
+  "campaign": { "id": "kh7b3q5n8v2c6x1z4m9l0p7s3d" },
+  "deletion": { "reason": "user", "deleted_at": "2026-12-05T09:12:44.000Z" }
+}
+```
+
+`reason` is `user`, `retention` or `privacy_request`. Pointed cannot recall events it already sent you. When you receive this, remove what you stored about the interview.
+
+### Completed campaigns
+
+`campaign.completed` describes one account's set of interviews. Its `data` is:
+
+```json
+{
+  "campaign": { "id": "kh7b3q5n8v2c6x1z4m9l0p7s3d", "title": "Customer stories", "dashboard_url": "https://app.usepointed.ai/dashboard/campaigns/kh7b3q5n8v2c6x1z4m9l0p7s3d" },
+  "account": { "id": "j57a1m6c3x9z2q8w4e7r5t0y1u", "name": "Acme", "domain": "acme.com" },
+  "interviews": { "invited": 8, "completed": 5, "expired": 3 }
+}
+```
+
+If someone starts another interview afterwards and the set completes again with a different result, you get a new event.
+
+## Verify the signature
+
+Pointed signs every request in the [Standard Webhooks](https://www.standardwebhooks.com) format, so you can use a published library or a few lines of your own code. Three headers are sent:
+
+| Header | Value |
+| --- | --- |
+| `webhook-id` | The event ID. |
+| `webhook-timestamp` | When this attempt was sent, in seconds since 1970. |
+| `webhook-signature` | `v1,` followed by the signature. During a secret rotation there are two, separated by a space. |
+
+With the `standardwebhooks` package for Node:
+
+```js
+import { Webhook } from "standardwebhooks";
+
+const webhook = new Webhook(process.env.POINTED_WEBHOOK_SECRET);
+
+export async function POST(request) {
+  const body = await request.text(); // the raw body, before any JSON parsing
+  let event;
+  try {
+    event = webhook.verify(body, Object.fromEntries(request.headers));
+  } catch {
+    return new Response("Invalid signature", { status: 400 });
+  }
+  // event.id, event.type, event.test, event.data
+  return new Response(null, { status: 204 });
+}
+```
+
+Without a library, in Python:
+
+```python
+import base64, hashlib, hmac, time
+
+def verify(secret: str, headers: dict, body: bytes) -> bool:
+    message_id = headers["webhook-id"]
+    timestamp = headers["webhook-timestamp"]
+    if abs(time.time() - int(timestamp)) > 300:  # older than five minutes
+        return False
+    key = base64.b64decode(secret.removeprefix("whsec_"))
+    signed = f"{message_id}.{timestamp}.".encode() + body
+    expected = base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode()
+    sent = [part.split(",", 1)[1] for part in headers["webhook-signature"].split(" ") if part.startswith("v1,")]
+    return any(hmac.compare_digest(expected, candidate) for candidate in sent)
+```
+
+Two things go wrong most often: verifying a body that a framework has already parsed and re-serialized, and comparing against the secret with the `whsec_` prefix still attached. Always verify the exact bytes you received.
+
+### Rotate the secret
+
+Rotate the secret from the Webhooks page, with `pointed webhooks rotate-secret <endpointId>`, or with the [API](/docs/api/webhook-endpoints#rotate-the-signing-secret). The new secret is shown once.
+
+For 24 hours Pointed signs every request with both the new secret and the previous one, so nothing fails while you update your receiver. Only one earlier secret is kept. If you rotate again within those 24 hours, the secret from before the first rotation stops working at once.
+
+## Delivery
+
+- **Success** is any `2xx` answer within 10 seconds. Do slow work after you answer.
+- **Redirects are not followed.** A redirect counts as a failure.
+- **Retries.** Pointed tries up to eight times over about 28 hours: at once, then after 1 minute, 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours and 10 hours. Every answer that is not `2xx` is retried, including `4xx`. A test event is sent once and is not retried.
+- **`410 Gone` turns the endpoint off.** Use it to tell Pointed to stop.
+- **Failing endpoints.** When an event runs out of retries, Pointed emails the workspace admins, at most once a day per endpoint. When that happens after five days without one success, Pointed turns the endpoint off and emails the admins. Turn it back on from the Webhooks page.
+- **Changing the address.** A new address starts with a clean record. Deliveries that were still waiting for the old address are cancelled, not sent to the new one. Resend the ones you want from the delivery log.
+- **Resend.** Any finished delivery can be sent again from the delivery log for 30 days, unless the interview was deleted. The copy has the same event ID.
+- **Limits.** Five endpoints per workspace. The address must use HTTPS on the default port and a public domain name. IP addresses, usernames and passwords in the address are refused.
+- **Source addresses.** Requests do not come from a fixed set of Pointed addresses. Verify the signature instead of allowlisting by IP.
+
+### Duplicates and order
+
+You can receive the same event more than once. A timeout or a dropped connection looks like a failure to Pointed even if your system processed the event, so Pointed sends it again. Store the event `id` and skip any you have already handled. This matters most when the event triggers a payment.
+
+Events can arrive out of order. A retried `interview.completed` can arrive after `interview.summary_ready`. Each body describes the interview at the time of that event and carries its own `created_at`.
+
+### Test events
+
+- **Send test event** sends `webhook.test` with invented data. Its `test` field is `true`.
+- **Test interviews** are the ones you take yourself from Pointed to try an interview. They produce events with `test: true`, and only for endpoints where you switched on "Also send events from test interviews". That switch is off unless you turn it on, so a receiver that pays rewards cannot be triggered by your own testing. In a test interview's event, `contact.email` is the address the test link was issued to, which can be a teammate's.
+
+## Your own IDs
+
+Matching by email is fragile. Give Pointed your own identifiers and they come back in every event.
+
+- **`external_id` on a contact.** Your CRM or product user ID for the person. Set it when you create or update a contact:
+
+  ```bash
+  pointed contacts create --account-id <accountId> --name "Sarah Lee" --email sarah@acme.com --external-id cus_8231
+  pointed contacts list --external-id cus_8231
+  ```
+
+- **`reference` on a link.** Your own label for one interview link, for example the user ID or an order number. Set it when you create the link:
+
+  ```bash
+  pointed links generate --campaign-id <campaignId> --contact-ids <contactId> --reference user_8231
+  ```
+
+  A reference can be changed by creating the link again until the interview starts. After that it stays as it is, so events about one interview always carry the same reference.
+
+Both are plain text up to 200 characters. Pointed stores them as given and does not interpret them.
+
+## Recipes
+
+### Send a reward when an interview is finished
+
+```js
+async function handle(event) {
+  if (event.test) return;                         // never pay for a test
+  if (event.type !== "interview.completed") return;
+  if (await alreadyHandled(event.id)) return;     // the same event can arrive twice
+  const userId = event.data.contact.external_id ?? event.data.invite.reference;
+  await issueReward(userId, { interviewId: event.data.interview.id, channel: event.data.interview.channel });
+  await markHandled(event.id);
+}
+```
+
+To pay more for a video, listen for `interview.recording_ready` and pay the difference when `data.interview.recording.video` is `ready`.
+
+### Nudge someone who left early
+
+Listen for `interview.incomplete`. When `data.attempt.outcome` is `ended_early` and `data.attempt.resumable` is `true`, send your own reminder. The same link continues where they stopped. `data.interview.answers_count` tells you how far they got.
+
+### Tell the account team in Slack
+
+Slack's incoming webhooks expect Slack's own message format, so use Zapier or Make in between: trigger on the Pointed webhook, filter on `type` equals `interview.completed` and `test` equals `false`, then post a message with `data.contact.name`, `data.account.name` and `data.interview.dashboard_url`. Add a second step on `interview.summary_ready` if you want the sentiment.
+
+### Keep the CRM in step
+
+Use `interview.started`, `interview.completed` and `invite.expired` to update a field on the contact or account and to stop your outreach sequence. Match on `data.contact.external_id`.
+
+## Set it up from the CLI, the API or an AI agent
+
+Everything on the Webhooks page is also available to scripts and agents. The caller needs a credential that belongs to a workspace admin.
+
+With the CLI:
+
+The `pointed webhooks` commands, `--external-id` and `--reference` need a CLI newer than 0.5.1. Update with `npm install -g @pointed/cli@latest`.
+
+```bash
+pointed webhooks events
+pointed webhooks create --url https://example.com/pointed --events interview.completed,interview.incomplete
+pointed webhooks test <endpointId> --wait
+pointed webhooks deliveries <endpointId>
+```
+
+`create` prints the signing secret once. `test --wait` sends a test event, waits for the result and exits with an error unless your endpoint answered `2xx`.
+
+With the API:
+
+```bash
+curl -X POST https://app.usepointed.ai/api/cli/v1/webhook-endpoints \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/pointed", "eventTypes": ["interview.completed", "interview.incomplete"]}'
+```
+
+See the [webhook endpoints reference](/docs/api/webhook-endpoints) for every route.
+
+With an AI coding agent, give it the task in plain words. For example:
+
+```text
+Add a route to our app at /webhooks/pointed that verifies Pointed's webhook
+signature and credits the user when an interview is completed. Then register
+the endpoint with `pointed webhooks create`, store the secret in our secret
+manager as POINTED_WEBHOOK_SECRET, and confirm it works with
+`pointed webhooks test <id> --wait`. Read https://docs.usepointed.ai/docs/webhooks.md first.
+```
+
+With the Pointed connection in ChatGPT or Codex, an agent can save an endpoint, read its secret once and send test events. An endpoint saved that way is not live. A workspace admin turns it on from the Webhooks page, which shows the full address the endpoint sends to so they can check it is theirs. It cannot be turned on with the CLI or the API. This is the same way those tools save interview drafts and leave launch to you.
+
+## Rewards and fairness
+
+- Pointed's invitations do not mention rewards. You make the promise in your own outreach, and the webhook tells you when to keep it.
+- Reward taking part, not what was said. `summary.sentiment` is there for account health. Do not use it to decide who gets a reward.
+- A reward is not permission to publish. Using someone's story in public needs their separate agreement, and you are responsible for any incentive disclosure rules that apply to you.
+- The reward goes to the person the link was issued to. A link that was forwarded to someone else cannot be detected.
+
+## Troubleshooting
+
+| What you see | What to check |
+| --- | --- |
+| The delivery log says "No answer within 10 seconds" | Answer first, then do the work. Queue the event and return `2xx`. |
+| "Your endpoint redirected" | Use the final address. Pointed does not follow redirects, including from `http` to `https` or to a trailing slash. |
+| Signature never verifies | Verify the raw body, not a re-serialized one. Check you are using the secret from this endpoint, and that your server clock is right. |
+| Nothing arrives for a real interview | Check the endpoint is on, and that the event type was selected before the interview happened. Nothing from before the endpoint was added, or before you selected that event, is sent. Demo and test interviews are not sent unless you opted in to test events. |
+| The same event arrived twice | That is expected sometimes. Skip event IDs you have already handled. |
+| The endpoint was turned off | It answered `410 Gone` or failed for five days. Fix the receiver, send a test event, then turn it back on. |
+| "This workspace already has an endpoint with that address" | Each address can be added once. If you lost the secret, rotate it on the existing endpoint. |

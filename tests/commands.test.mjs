@@ -98,6 +98,14 @@ const pathCommands = [
   id => ['responses', 'download', '--campaign-id', id],
   id => ['responses', 'download', '--campaign-id', id, '--response-id', 'response-1'],
   id => ['responses', 'download', '--campaign-id', 'campaign-1', '--response-id', id],
+  id => ['contacts', 'list', '--account-id', id],
+  id => ['webhooks', 'get', id],
+  id => ['webhooks', 'update', id, '--pause'],
+  id => ['webhooks', 'test', id],
+  id => ['webhooks', 'deliveries', id],
+  id => ['webhooks', 'resend', id],
+  id => ['webhooks', 'rotate-secret', id],
+  id => ['webhooks', 'delete', id],
 ];
 
 test('every dynamic path argument rejects endpoint injection before sending a request', async t => {
@@ -608,4 +616,86 @@ test('pending settings review submits only selected revision pairs to the templa
   await rejectsBeforeRequest(f, ['interviews', 'settings', 'set', 'demo-1', '--file', file]);
   fs.writeFileSync(file, JSON.stringify({ ...settings, pendingUpdates: [{ inviteId: 'invite-1' }] }));
   await rejectsBeforeRequest(f, ['interviews', 'settings', 'set', 'template-1', '--kind', 'story_template', '--file', file]);
+});
+
+test('webhook commands send the documented requests and keep the one-time secret notice off stdout', async t => {
+  const f = await fixture(t);
+  f.respond({ endpoint: { id: 'endpoint-1' }, secret: 'whsec_c2FtcGxl', needsApproval: false });
+  const created = await f.run(['webhooks', 'create', '--url', 'https://hooks.example.com/pointed', '--events', 'interview.completed, interview.incomplete', '--description', 'Rewards']);
+  assert.equal(created.code, 0, created.stderr);
+  assert.deepEqual(f.requests.at(-1), { method: 'POST', url: '/api/cli/v1/webhook-endpoints',
+    body: { url: 'https://hooks.example.com/pointed', description: 'Rewards', eventTypes: ['interview.completed', 'interview.incomplete'] } });
+  // stdout is exactly the JSON result, so a script or an agent can parse it.
+  assert.equal(JSON.parse(created.stdout).secret, 'whsec_c2FtcGxl');
+  assert.match(created.stderr, /not shown again/);
+
+  for (const [args, body] of [
+    [['--pause'], { status: 'paused' }],
+    [['--resume', '--events', 'invite.expired', '--no-test-events'], { status: 'active', eventTypes: ['invite.expired'], receiveTestEvents: false }],
+    [['--test-events'], { receiveTestEvents: true }],
+  ]) {
+    const updated = await f.run(['webhooks', 'update', 'endpoint-1', ...args]);
+    assert.equal(updated.code, 0, updated.stderr);
+    assert.deepEqual(f.requests.at(-1), { method: 'PATCH', url: '/api/cli/v1/webhook-endpoints/endpoint-1', body });
+  }
+  for (const [args, method, endpoint] of [
+    [['webhooks', 'list'], 'GET', '/webhook-endpoints'],
+    [['webhooks', 'deliveries', 'endpoint-1', '--limit', '5', '--cursor', 'next-page'], 'GET', '/webhook-endpoints/endpoint-1/deliveries?limit=5&cursor=next-page'],
+    [['webhooks', 'resend', 'delivery-1'], 'POST', '/webhook-deliveries/delivery-1/resend'],
+    [['webhooks', 'rotate-secret', 'endpoint-1'], 'POST', '/webhook-endpoints/endpoint-1/rotate-secret'],
+    [['webhooks', 'delete', 'endpoint-1'], 'DELETE', '/webhook-endpoints/endpoint-1'],
+  ]) {
+    const result = await f.run(args);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(f.requests.at(-1).url, `/api/cli/v1${endpoint}`);
+    assert.equal(f.requests.at(-1).method, method);
+  }
+});
+
+test('webhook options are checked before anything is sent', async t => {
+  const f = await fixture(t);
+  await rejectsBeforeRequest(f, ['webhooks', 'update', 'endpoint-1', '--pause', '--resume']);
+  await rejectsBeforeRequest(f, ['webhooks', 'create', '--url', 'https://hooks.example.com/pointed', '--events', 'interview.completed,']);
+  // A mistyped wait must not cost a test event.
+  for (const timeout of ['0', '301', '2.5', 'soon']) await rejectsBeforeRequest(f, ['webhooks', 'test', 'endpoint-1', '--wait', '--timeout', timeout]);
+  for (const limit of ['0', '51']) await rejectsBeforeRequest(f, ['webhooks', 'deliveries', 'endpoint-1', '--limit', limit]);
+});
+
+test('webhook test --wait reports the delivery and exits nonzero unless it was delivered', async t => {
+  const f = await fixture(t);
+  for (const [status, code] of [['delivered', 0], ['failed', 1]]) {
+    f.respond({ deliveryId: 'delivery-1', eventId: 'evt_1', deliveries: [{ id: 'delivery-1', status, attempts: 1, statusCode: status === 'delivered' ? 200 : 500 }], nextCursor: null });
+    const result = await f.run(['webhooks', 'test', 'endpoint-1', '--wait', '--timeout', '5']);
+    assert.equal(result.code, code, result.stderr);
+    assert.equal(JSON.parse(result.stdout).delivery.status, status);
+    assert.deepEqual(f.requests.slice(-2).map(request => [request.method, request.url]), [
+      ['POST', '/api/cli/v1/webhook-endpoints/endpoint-1/test'],
+      ['GET', '/api/cli/v1/webhook-endpoints/endpoint-1/deliveries?limit=20'],
+    ]);
+  }
+});
+
+test('contacts and links carry the workspace\'s own IDs, and contacts can be found by external ID', async t => {
+  const f = await fixture(t);
+  const created = await f.run(['contacts', 'create', '--account-id', 'account-1', '--name', 'Jane', '--email', 'jane@acme.example', '--external-id', 'crm_42']);
+  assert.equal(created.code, 0, created.stderr);
+  assert.equal(f.requests.at(-1).body.externalId, 'crm_42');
+  for (const externalId of ['crm_43', '']) {
+    const updated = await f.run(['contacts', 'update', 'contact-1', '--external-id', externalId]);
+    assert.equal(updated.code, 0, updated.stderr);
+    assert.deepEqual(f.requests.at(-1).body, { externalId });
+  }
+  for (const [args, endpoint] of [
+    [['--external-id', 'crm 42'], '/contacts?externalId=crm+42'],
+    [['--account-id', 'account-1', '--external-id', 'crm_42'], '/contacts?accountId=account-1&externalId=crm_42'],
+    [['--account-id', 'account-1'], '/contacts?accountId=account-1'],
+  ]) {
+    const listed = await f.run(['contacts', 'list', ...args]);
+    assert.equal(listed.code, 0, listed.stderr);
+    assert.equal(f.requests.at(-1).url, `/api/cli/v1${endpoint}`);
+  }
+  await rejectsBeforeRequest(f, ['contacts', 'list']);
+  const links = await f.run(['links', 'generate', '--campaign-id', 'campaign-1', '--contact-ids', 'contact-1', '--reference', 'user_8231']);
+  assert.equal(links.code, 0, links.stderr);
+  assert.deepEqual(f.requests.at(-1).body, { campaignId: 'campaign-1', contactIds: ['contact-1'], reference: 'user_8231' });
 });

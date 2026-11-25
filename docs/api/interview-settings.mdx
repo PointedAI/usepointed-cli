@@ -1,0 +1,388 @@
+---
+title: Interview settings
+description: Read and save the opening question, context, interviewer instructions and voice settings of a story template or a Demo Mode link.
+---
+
+Interview settings control what the AI interviewer asks and how it sounds. They belong to a target. A target is a story template or a Demo Mode link.
+
+| `kind` | Target | `id` |
+| --- | --- | --- |
+| `story_template` | A story template | The template ID |
+| `demo` | A Demo Mode link | The Demo Mode link ID, from [List targets](#list-targets) |
+
+Settings have a revision number. To save, you send back the revision you read. If someone saved in between, the save is refused and nothing changes. Read the settings again, apply your change and save again.
+
+Saving settings does not send invitations or start interviews.
+
+Every route on this page needs a user-backed credential. An organization-backed API key gets 403.
+
+Failures on this page that are not about the credential or the shape of the request return 400 with one general message:
+
+```json
+{
+  "error": "Interview settings could not be accessed or saved. Check the workspace, target and configuration.",
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+This covers a target that does not exist. These routes do not return 404.
+
+## List targets
+
+```text
+GET /api/cli/v1/interview-settings
+```
+
+**Authorization:** scope `pointed:read`. A user-backed credential.
+
+**Query parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | string | No | `demo` or `story_template`. The default is `demo`. |
+| `limit` | integer | No | The page size, from 1 to 25. The default is 25. |
+| `cursor` | string | No | The `nextCursor` from the previous page. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "target": { "kind": "story_template", "id": "ks91t4w7y2z5b8d3g6j0m1n4pq" },
+        "title": "Customer stories",
+        "revision": 2,
+        "interviewChannel": "browser",
+        "url": "https://app.usepointed.ai/dashboard/interview-templates/ks91t4w7y2z5b8d3g6j0m1n4pq/configuration"
+      }
+    ],
+    "nextCursor": null
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `items[].target` | object | The `kind` and `id` to use in the other routes. |
+| `items[].title` | string | The target's name. |
+| `items[].revision` | number | The current settings revision. |
+| `items[].interviewChannel` | string or null | The interview channel of a story template. `null` for a Demo Mode link or when not set. |
+| `items[].url` | string | The settings page for this target in the Pointed app. |
+| `nextCursor` | string or null | Send it as `cursor` to get the next page. `null` on the last page. |
+
+A page can hold fewer items than `limit` before the last page. Keep going until `nextCursor` is `null`.
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | `kind` is not `demo` or `story_template`, or `limit` is not a whole number from 1 to 25. |
+| 403 | The key is organization-backed, or another [authentication error](/docs/api/authentication#authentication-errors). |
+
+**Example**
+
+```bash
+curl "https://app.usepointed.ai/api/cli/v1/interview-settings?kind=story_template&limit=25" \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Get interview settings
+
+```text
+GET /api/cli/v1/interview-settings/{kind}/{id}
+```
+
+**Authorization:** scope `pointed:read`. A user-backed credential.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | string | Yes | `demo` or `story_template`. |
+| `id` | string | Yes | The target ID. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "actorId": "kn83p5r2u7h4b1d6g9j0m3c8fa",
+    "revision": 2,
+    "title": "Customer stories",
+    "productName": "Customer stories",
+    "openingQuestion": "What changed after you adopted the product?",
+    "context": "Capture the before-and-after story behind the results customers have seen.",
+    "instructions": "Keep questions short. Ask for specific numbers.",
+    "elevenLabsSettingsJson": "{}",
+    "interviewChannel": "browser",
+    "available": true,
+    "browserAudioAvailable": true,
+    "browserVideoAvailable": true,
+    "phoneAvailable": false,
+    "unavailableReason": null,
+    "target": { "kind": "story_template", "id": "ks91t4w7y2z5b8d3g6j0m1n4pq" },
+    "url": "https://app.usepointed.ai/dashboard/interview-templates/ks91t4w7y2z5b8d3g6j0m1n4pq/configuration"
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `revision` | number | The settings revision. Send it as `expectedRevision` when you save. |
+| `title` | string | The target's name. |
+| `productName` | string | The product the interview is about. |
+| `openingQuestion` | string | The first question the interviewer asks. |
+| `context` | string | Background the interviewer uses. |
+| `instructions` | string | Guidance on how the interviewer should conduct the interview. |
+| `elevenLabsSettingsJson` | string | Advanced voice settings, as JSON text. `"{}"` means Pointed's defaults. |
+| `interviewChannel` | string or null | The interview channel of a story template. `null` for a Demo Mode link or when not set. |
+| `available` | boolean | Whether interviews with these settings can run now. |
+| `browserAudioAvailable`, `browserVideoAvailable`, `phoneAvailable` | boolean | Whether each way of taking the interview can run now. |
+| `unavailableReason` | string or null | Why interviews cannot run now, as text. `null` when they can. |
+| `actorId` | string | The Pointed user ID of the person behind the credential. |
+| `target` | object | The `kind` and `id` you asked for. |
+| `url` | string | The settings page for this target in the Pointed app. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | `kind` is not `demo` or `story_template`, or `id` is not a valid ID. |
+| 400 | The target was not found, or the settings could not be read. The general message above is returned. |
+| 403 | The key is organization-backed, or another [authentication error](/docs/api/authentication#authentication-errors). |
+
+**Example**
+
+```bash
+curl https://app.usepointed.ai/api/cli/v1/interview-settings/story_template/ks91t4w7y2z5b8d3g6j0m1n4pq \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Save interview settings
+
+```text
+PUT /api/cli/v1/interview-settings/{kind}/{id}
+```
+
+**Authorization:** scopes `pointed:read` and `pointed:write`. A user-backed credential with the admin or member role.
+
+Replaces the settings of a target. A save applies to interviews prepared after it. Links that already exist keep the settings they were prepared with, unless you name them in `pendingUpdates`. Interviews that have started are never changed.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | string | Yes | `demo` or `story_template`. |
+| `id` | string | Yes | The target ID. |
+
+**Body parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `expectedRevision` | integer | Yes | The `revision` you read. |
+| `openingQuestion` | string | Yes | The first question, 1 to 1,000 characters. |
+| `context` | string | Yes | Background for the interviewer, up to 24,000 characters. |
+| `instructions` | string | Yes | Guidance for the interviewer, up to 11,800 characters. |
+| `elevenLabsSettingsJson` | string | No | Advanced voice settings as JSON text, up to 64,000 characters. It uses the names of the ElevenLabs `conversation_config` format. `"{}"` selects Pointed's defaults. Leave it out to keep the saved value. |
+| `interviewChannel` | string or null | No | Story templates only. `phone`, `browser`, `browser_audio`, `browser_video` or `participant_choice`. `null` removes the setting, which allows phone and browser voice. Leave it out to keep the saved value. |
+| `pendingUpdates` | array | No | Story templates only. Up to 100 existing links to move to the new settings. Each entry is `{"inviteId": "...", "expectedRevision": 0}`, taken from [List pending updates](#list-pending-updates). |
+
+The body accepts these fields only. A body with any other field is refused, so do not send back the whole object you read. The body can be up to 512 KiB.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "status": "saved",
+    "revision": 3,
+    "pendingUpdatesResult": {
+      "updated": 1,
+      "skipped": 0
+    }
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | string | `saved`, or `conflict` with status 409. |
+| `revision` | number | The new revision after a save. On a conflict, the revision that is stored now. |
+| `pendingUpdatesResult` | object | Present when you sent `pendingUpdates`. `updated` counts the links moved to the new settings. `skipped` counts the links left alone, for example because the interview started in the meantime. |
+
+**Response to a conflict:** `409 Conflict`. The body uses the success format and has no `error` field.
+
+```json
+{
+  "data": {
+    "status": "conflict",
+    "revision": 4
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | The body is not valid JSON, is over 512 KiB, misses a required field, has a field over its limit, or has a field that is not in the table above. |
+| 400 | `elevenLabsSettingsJson` is not accepted. `error` gives the reason. |
+| 400 | `interviewChannel` or `pendingUpdates` was sent for a Demo Mode link, the target was not found, or the settings could not be saved. The general message above is returned. |
+| 403 | The credential may not write. See [authentication errors](/docs/api/authentication#authentication-errors). |
+| 409 | `expectedRevision` is not the stored revision. See the conflict response above. |
+
+**Example**
+
+```bash
+curl -X PUT https://app.usepointed.ai/api/cli/v1/interview-settings/story_template/ks91t4w7y2z5b8d3g6j0m1n4pq \
+  -H "Authorization: Bearer $POINTED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "expectedRevision": 2,
+    "openingQuestion": "What changed after you adopted the product?",
+    "context": "Capture the before-and-after story behind the results customers have seen.",
+    "instructions": "Keep questions short. Ask for specific numbers.",
+    "pendingUpdates": [{ "inviteId": "jd7f2k9x0m4q8v1n3s6t5w2y7z", "expectedRevision": 0 }]
+  }'
+```
+
+## List pending updates
+
+```text
+GET /api/cli/v1/interview-settings/{kind}/{id}/pending-updates
+```
+
+**Authorization:** scope `pointed:read`. A user-backed credential with the admin or member role.
+
+Lists the template's interview links that have not started and can still take new settings. Choose the ones you want and send them as `pendingUpdates` when you [save](#save-interview-settings). This route changes nothing. For a Demo Mode link the list is always empty.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | string | Yes | `story_template` or `demo`. |
+| `id` | string | Yes | The target ID. |
+
+**Query parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `limit` | integer | No | The page size, from 1 to 25. The default is 25. |
+| `cursor` | string | No | The `nextCursor` from the previous page. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "inviteId": "jd7f2k9x0m4q8v1n3s6t5w2y7z",
+        "expectedRevision": 0,
+        "createdAt": 1796137200000,
+        "title": "Customer stories",
+        "recipientName": "Sarah Lee"
+      }
+    ],
+    "nextCursor": null
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `items[].inviteId` | string | The invite ID of the link. |
+| `items[].expectedRevision` | number | The revision of that link's own settings. Send it back unchanged in `pendingUpdates`. |
+| `items[].createdAt` | number | When the link was created, in milliseconds. |
+| `items[].title` | string | The interview title. |
+| `items[].recipientName` | string | The person the link was issued to. |
+| `nextCursor` | string or null | Send it as `cursor` to get the next page. `null` on the last page. |
+
+A page can hold fewer items than `limit`, or none, before the last page. Keep going until `nextCursor` is `null`.
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | `kind` or `id` is not valid, `limit` is not a whole number from 1 to 25, the target was not found, or the person's role is viewer. Apart from the first case, the general message above is returned. |
+| 403 | The key is organization-backed, or another [authentication error](/docs/api/authentication#authentication-errors). |
+
+**Example**
+
+```bash
+curl "https://app.usepointed.ai/api/cli/v1/interview-settings/story_template/ks91t4w7y2z5b8d3g6j0m1n4pq/pending-updates?limit=25" \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
+
+## Get the voice settings in use
+
+```text
+GET /api/cli/v1/interview-settings/{kind}/{id}/provider
+```
+
+**Authorization:** scope `pointed:read`. A user-backed credential.
+
+Returns the voice settings that interviews for this target use, with every default filled in. Read it before you write `elevenLabsSettingsJson`, to see the values you would change. This route changes nothing.
+
+**Path parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | string | Yes | `demo` or `story_template`. |
+| `id` | string | Yes | The target ID. |
+
+**Query parameters**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `channel` | string | Yes | `browser_audio` or `phone`. |
+
+**Response:** `200 OK`. The example shows two of the settings.
+
+```json
+{
+  "data": {
+    "settingsJson": "{\n  \"tts\": {\n    \"voice_id\": \"EXAMPLEvoiceID000001\"\n  },\n  \"conversation\": {\n    \"max_duration_seconds\": 900\n  }\n}"
+  },
+  "meta": {
+    "requestId": "3f6c1e0a-8b7d-4c2e-9a41-5d0e7b9c2f18"
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `settingsJson` | string | The settings as JSON text. Parse it to read the values. |
+
+**Errors**
+
+| Status | When |
+| --- | --- |
+| 400 | `channel` is not `browser_audio` or `phone`, or `kind` or `id` is not valid. |
+| 400 | The target was not found, the template does not allow that channel, or the settings could not be read. The general message above is returned. |
+| 403 | The key is organization-backed, or another [authentication error](/docs/api/authentication#authentication-errors). |
+
+**Example**
+
+```bash
+curl "https://app.usepointed.ai/api/cli/v1/interview-settings/story_template/ks91t4w7y2z5b8d3g6j0m1n4pq/provider?channel=browser_audio" \
+  -H "Authorization: Bearer $POINTED_API_KEY"
+```
