@@ -11,6 +11,8 @@ interface SurveyLinkResult {
   contactEmail?: string;
   surveyUrl?: string;
   token?: string;
+  inviteId?: string;
+  reference?: string | null;
   error?: string;
 }
 
@@ -38,11 +40,16 @@ export function createLinksCommand(): Command {
       "--contact-emails <emails>",
       "Comma-separated contact emails on the campaign account",
     )
+    .option(
+      "--reference <reference>",
+      "Your own label for these links (for example your user ID); sent back in webhook events",
+    )
     .action(
       async (options: {
         campaignId: string;
         contactIds?: string;
         contactEmails?: string;
+        reference?: string;
       }) => {
         try {
           if (
@@ -68,6 +75,10 @@ export function createLinksCommand(): Command {
               options.contactEmails,
               "--contact-emails",
             );
+          }
+
+          if (options.reference !== undefined) {
+            body["reference"] = options.reference;
           }
 
           const res = await apiRequest<SurveyLinkBatchResponse>(
